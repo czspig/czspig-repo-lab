@@ -9,7 +9,19 @@
  *   stack   主要技术栈
  *   date    发布日期 YYYY-MM-DD
  */
-const REPORTS = [];
+const REPORTS = [
+	{
+		slug: "claude-code",
+		repo: "anthropics/claude-code",
+		title: "Claude Code 深度解析",
+		file: "reports/claude-code.html",
+		summary:
+			"闭源的引擎，敞开的接口：从官方插件、Hooks、Mods 到 Agent SDK 的子进程控制协议，拆清楚 Claude Code 是怎么被扩展和驱动的。",
+		tags: ["AI Agent", "Hooks", "Agent SDK"],
+		stack: ["TypeScript", "Python"],
+		date: "2026-10-19",
+	},
+];
 
 /* 实验日志：新的在后面 */
 const LOG = [
@@ -17,6 +29,11 @@ const LOG = [
 		date: "2026-10-19",
 		title: "研究所开张",
 		body: "研究台账、技术栈雷达和研究方法都已就位，首批开源项目解析正在整理中。",
+	},
+	{
+		date: "2026-10-19",
+		title: "首份报告：Claude Code 深度解析",
+		body: "拆了 anthropics/claude-code 与 Agent SDK：插件和 Hooks 的扩展机制、内置 Mods，以及 SDK 遥控 CLI 的控制协议，附两个本地实验。",
 	},
 ];
 
