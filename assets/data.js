@@ -21,6 +21,17 @@ const REPORTS = [
 		stack: ["TypeScript", "Python"],
 		date: "2026-10-19",
 	},
+	{
+		slug: "harness2",
+		repo: "google-research/harness2",
+		title: "Harness² 深度解析",
+		file: "reports/harness2.html",
+		summary:
+			"不改模型，让 Agent 自己改装备：拆解 Google Research 的递归 harness 优化框架，从「提议 → 探测 → 合成」到防偷看答案的四道防线，附 Windows 上跑通离线演示的两个坑。",
+		tags: ["AI Agent", "Harness 工程", "论文代码"],
+		stack: ["Python"],
+		date: "2026-10-20",
+	},
 ];
 
 /* 实验日志：新的在后面 */
@@ -34,6 +45,11 @@ const LOG = [
 		date: "2026-10-19",
 		title: "首份报告：Claude Code 深度解析",
 		body: "拆了 anthropics/claude-code 与 Agent SDK：插件和 Hooks 的扩展机制、内置 Mods，以及 SDK 遥控 CLI 的控制协议，附两个本地实验。",
+	},
+	{
+		date: "2026-10-20",
+		title: "第二份报告：Harness² 深度解析",
+		body: "拆了 google-research/harness2 的两层递归、预算恒等式和防泄漏设计，并在 Windows 上补齐两处兼容问题后跑通了官方离线演示。",
 	},
 ];
 

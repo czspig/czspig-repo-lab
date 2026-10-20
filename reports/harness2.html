@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Harness² 深度解析 · 猪猪 Repo 研究所</title>
+	<meta name="description" content="Google Research 的 Harness²：不改模型权重，用「提议 → 探测 → 合成」自动改进 Agent 的提示词、技能和脚本，并把经验按领域积累。附 Windows 本地复现。">
+	<meta name="theme-color" content="#faf9f5">
+	<meta property="og:title" content="Harness² 深度解析 · 猪猪 Repo 研究所">
+	<meta property="og:description" content="不改模型，让 Agent 自己改装备：拆解 Google Research 的递归 harness 优化框架。">
+	<meta property="og:image" content="https://czspig.github.io/czspig-repo-lab/assets/cover.webp">
+	<meta property="og:url" content="https://czspig.github.io/czspig-repo-lab/reports/harness2.html">
+	<link rel="icon" type="image/png" href="../assets/favicon.png">
+	<script>
+		try {
+			var t = localStorage.getItem("repo-lab-theme");
+			if (t) document.documentElement.setAttribute("data-theme", t);
+		} catch (e) {}
+	</script>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400..700;1,8..60,400..600&display=swap">
+	<link rel="stylesheet" href="../assets/styles.css">
+	<link rel="stylesheet" href="../assets/report.css">
+</head>
+<body>
+	<header class="nav">
+		<div class="wrap nav-in">
+			<a class="brand" href="../" aria-label="猪猪 Repo 研究所 首页">
+				<img src="../assets/logo.webp" alt="" width="34" height="34">
+				<span>
+					<span class="brand-name">猪猪 Repo 研究所</span>
+					<span class="brand-sub">czspig-repo-lab</span>
+				</span>
+			</a>
+			<nav class="nav-links" aria-label="主导航">
+				<a href="../#ledger">研究台账</a>
+				<a href="../#method">研究方法</a>
+				<a href="../#log">实验日志</a>
+			</nav>
+			<div class="nav-actions">
+				<a class="icon-btn" href="https://github.com/czspig/czspig-repo-lab" target="_blank" rel="noopener" aria-label="GitHub 仓库">
+					<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3"/></svg>
+				</a>
+				<button class="icon-btn" id="themeBtn" type="button" aria-label="切换明暗主题">
+					<svg class="theme-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+					<svg class="theme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+				</button>
+			</div>
+		</div>
+	</header>
+
+	<main class="wrap">
+		<header class="report-hero">
+			<a class="crumb" href="../#ledger">← 返回研究台账</a>
+			<p class="eyebrow">Report No.002 · Agent Harness</p>
+			<h1>Harness² 深度解析：<br>不改模型，让 Agent 自己改装备</h1>
+			<p class="lede">模型权重一动不动，只改围在它外面的那一圈东西：提示词、规则、记忆、技能、脚本。Google Research 的 Harness² 把这件事做成了一个自动循环：先试几种改法，看实际跑出来的差别，再合成更好的版本，最后把经验存给下一个任务。</p>
+			<dl class="meta">
+				<div><dt>研究对象</dt><dd><a href="https://github.com/google-research/harness2" target="_blank" rel="noopener">google-research/harness2</a><br><a href="https://arxiv.org/abs/2610.14224" target="_blank" rel="noopener">论文 arXiv:2610.14224</a></dd></div>
+				<div><dt>研究版本</dt><dd>0.1.0 @ 1cfe254（2026-10-13）</dd></div>
+				<div><dt>许可</dt><dd>Apache 2.0<br>third_party/ 与数据集保留各自许可</dd></div>
+				<div><dt>发布日期</dt><dd>2026-10-20</dd></div>
+			</dl>
+		</header>
+
+		<div class="doc">
+			<aside class="toc" aria-label="本文目录">
+				<p>目录</p>
+				<ol>
+					<li><a href="#sample">01 取样</a></li>
+					<li><a href="#map">02 测绘</a></li>
+					<li><a href="#dissect">03 解剖</a></li>
+					<li><a href="#reproduce">04 复现</a></li>
+					<li><a href="#verdict">05 结论</a></li>
+				</ol>
+			</aside>
+
+			<article class="prose">
+				<section id="sample">
+					<h2><span class="step-no">01</span>取样：它是什么，为什么值得拆</h2>
+					<p>先认识一个词：<strong>harness</strong>，直译是「马具、挽具」。在 Agent 领域，它指模型外面那一整套让它能干活的东西：系统提示词、规则、记忆、工具说明、子代理、技能、脚本、插件。上一篇拆的 Claude Code，本质上就是一个做得很好的 harness。</p>
+					<p>Harness² 要解决的问题是：<strong>换一种没见过的任务时，怎么自动把 harness 调得更合适？</strong>它不训练模型，而是让一个「编辑」模型去改 harness 文件，然后用真实运行结果判断改得好不好。名字里的平方，指两层递归：</p>
+					<ul>
+						<li><strong>任务级递归</strong>：在当前任务上「提议 → 探测 → 合成」，得到一个改进后的 harness。</li>
+						<li><strong>Harness 级递归</strong>：每做完一个任务，就把采用的 harness 和学到的经验存进经验库，指导同领域的下一个任务。</li>
+					</ul>
+					<p>README 里报告的效果：一步 Harness² 在 GLM-5 和 Gemini 3.5 Flash 上都比基础 harness 好，WorkBuddy-Bench 最多提升 11.5 分，JobBench 提升 4.5 分，法律基准 LAB 的部分通过率提升 11.8 个百分点。<strong>这些数字来自论文，本文没有复现。</strong></p>
+					<div class="table-wrap">
+						<table>
+							<thead><tr><th>样本卡</th><th></th></tr></thead>
+							<tbody>
+								<tr><td>规模</td><td><code>harness2/</code> 共 39 个 Python 文件约 1.27 万行：核心方法 <code>core/</code> 约 5700 行，执行器适配 <code>substrate/</code> 约 1000 行，三个基准的适配 <code>benchmarks/</code> 约 4200 行</td></tr>
+								<tr><td>依赖</td><td>核心零第三方依赖（<code>dependencies = []</code>），渲染和模型网桥是可选附加项</td></tr>
+								<tr><td>执行器</td><td>OpenCode（默认）和 Codex：真正干活的 Agent 框架</td></tr>
+								<tr><td>运行环境</td><td>官方只支持 Linux + Python 3.12（下面的实验会撞上这一点）</td></tr>
+							</tbody>
+						</table>
+					</div>
+				</section>
+
+				<section id="map">
+					<h2><span class="step-no">02</span>测绘：先看清全貌</h2>
+					<p><code>core/spec.py</code> 开头的注释把整个项目的骨架说得很清楚：<strong>三条轴互不干扰</strong>。</p>
+					<div class="table-wrap">
+						<table>
+							<thead><tr><th>轴</th><th>是什么</th><th>代码在哪</th></tr></thead>
+							<tbody>
+								<tr><td>方法</td><td>递归流程、提示词、选择、经验库：论文本身的贡献</td><td><code>core/</code></td></tr>
+								<tr><td>执行器</td><td>每次「跑一遍任务」用哪个 Agent 框架</td><td><code>substrate/opencode.py</code>、<code>codex.py</code></td></tr>
+								<tr><td>基准</td><td>任务从哪来、产物怎么读、最后怎么打分</td><td><code>benchmarks/</code>，实现 <code>BenchmarkAdapter</code> 协议</td></tr>
+							</tbody>
+						</table>
+					</div>
+					<p>想接入自己的任务，只要实现 <code>BenchmarkAdapter</code> 的十几个方法：列出任务、执行一次、判断有没有交付、把运行轨迹转成文字、提供初始 harness……注释写的是「实现这些，整个方法就能工作；这里没有任何方法逻辑」。</p>
+
+					<h3>八个可编辑组件</h3>
+					<p>编辑模型能改的范围被严格限定为八类文件，同一个概念在两个执行器里落在不同路径上：</p>
+					<div class="table-wrap">
+						<table>
+							<thead><tr><th>组件</th><th>OpenCode 里的位置</th><th>Codex 里的位置</th><th>作用</th></tr></thead>
+							<tbody>
+								<tr><td>系统提示词 · 规则 · 记忆 · 工具说明</td><td><code>systemprompt.md</code>、<code>guardrails.md</code>、<code>LongTermMEMORY.md</code>、<code>tool_descriptions/tool_guidance.md</code></td><td>合并在一个 <code>AGENTS.md</code></td><td>常驻上下文，每次运行都占 token</td></tr>
+								<tr><td>技能</td><td><code>skills/&lt;名字&gt;/SKILL.md</code></td><td><code>.agents/skills/…</code></td><td>按需加载的操作手册</td></tr>
+								<tr><td>子代理</td><td colspan="2"><code>sub_agents/&lt;名字&gt;/AGENT.md</code></td><td>委派出去的专项工作</td></tr>
+								<tr><td>脚本</td><td colspan="2"><code>scripts/&lt;名字&gt;.py</code></td><td>重复、确定性的计算和检查</td></tr>
+								<tr><td>插件 / 钩子</td><td><code>plugin/&lt;名字&gt;.ts</code></td><td><code>.codex/hooks.json</code></td><td>工具循环里的中间件</td></tr>
+							</tbody>
+						</table>
+					</div>
+					<p>常驻文本有上限：OpenCode 2.4 万字符，Codex 8000 字符。代码里给的理由是「这里的每个 token 都在和 Agent 自己的输出预算抢位置」。</p>
+
+					<h3>源码地图</h3>
+					<pre><code>harness2/
+├── core/
+│   ├── recursion.py   <span class="c"># 并行 / 串行两种任务级递归（提议 → 探测 → 合成）</span>
+│   ├── prompts.py     <span class="c"># 编辑、合成、选择、反思用的全部提示词（1163 行）</span>
+│   ├── context.py     <span class="c"># 把运行轨迹、产物、历史决定整理成编辑模型能读的证据</span>
+│   ├── tree.py        <span class="c"># 八个组件的读、写、校验、diff</span>
+│   ├── selection.py   <span class="c"># 匿名盲选最终产物，然后写经验</span>
+│   ├── library.py     <span class="c"># 按领域存放的经验库</span>
+│   ├── ledger.py      <span class="c"># 预算记账：R = 4k 次运行，P = 3k 次编辑</span>
+│   ├── schedule.py    <span class="c"># 按领域依次跑任务、断点续跑</span>
+│   └── judge.py       <span class="c"># 选择完成后才调用的打分</span>
+├── substrate/         <span class="c"># OpenCode / Codex 执行器适配</span>
+├── benchmarks/        <span class="c"># JobBench、LAB、WorkBuddy-Bench 适配</span>
+├── demo.py            <span class="c"># 不需要模型的本地演示（第 04 节用它）</span>
+└── cli/               <span class="c"># harness2、harness2-judge、harness2-demo 等命令</span></code></pre>
+				</section>
+
+				<section id="dissect">
+					<h2><span class="step-no">03</span>解剖：读到关键代码</h2>
+
+					<h3>一次「提议 → 探测 → 合成」</h3>
+					<figure class="figure">
+						<div class="scroll">
+							<svg viewBox="0 0 880 420" role="img" aria-labelledby="h2fig1">
+								<title id="h2fig1">Harness² 流程图：上排是任务级递归的五步，下排是跨任务的反思与经验库，经验库再回到下一个任务的提议步骤</title>
+								<defs>
+									<marker id="ha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="currentColor"/></marker>
+								</defs>
+								<g font-family="Inter, PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="currentColor" text-anchor="middle">
+									<text x="20" y="30" text-anchor="start" font-size="11" fill="var(--ink-3)" font-family="JetBrains Mono, monospace" letter-spacing="1">任务级递归 · 每个任务内部</text>
+									<g fill="var(--surface)" stroke="var(--rule)" stroke-width="1.5">
+										<rect x="20" y="44" width="150" height="128" rx="12"/>
+										<rect x="192" y="44" width="150" height="128" rx="12" stroke="var(--accent)"/>
+										<rect x="364" y="44" width="150" height="128" rx="12" stroke="var(--accent)"/>
+										<rect x="536" y="44" width="150" height="128" rx="12" stroke="var(--accent)"/>
+										<rect x="708" y="44" width="152" height="128" rx="12"/>
+									</g>
+									<g font-family="JetBrains Mono, monospace" font-size="11" fill="var(--accent)"><text x="95" y="68">00</text><text x="267" y="68">01 PROPOSE</text><text x="439" y="68">02 PROBE</text><text x="611" y="68">03 COMPOSE</text><text x="784" y="68">04 SELECT</text></g>
+									<g font-weight="600" font-size="15"><text x="95" y="94">基础执行</text><text x="267" y="94">提议</text><text x="439" y="94">探测</text><text x="611" y="94">合成</text><text x="784" y="94">盲选</text></g>
+									<g font-size="12" fill="var(--ink-2)">
+										<text x="95" y="120">原始 harness</text><text x="95" y="139">跑 k 次</text><text x="95" y="158">留下轨迹与产物</text>
+										<text x="267" y="120">INV 编辑 ×k</text><text x="267" y="139">DOM 编辑 ×k</text><text x="267" y="158">各改一份 harness</text>
+										<text x="439" y="120">2k 个候选</text><text x="439" y="139">在同一任务上</text><text x="439" y="158">各跑一次</text>
+										<text x="611" y="120">对比运行差异</text><text x="611" y="139">合并 / 采纳 / 保留</text><text x="611" y="158">k 个最终版各跑一次</text>
+										<text x="784" y="120">产物匿名成 A、B…</text><text x="784" y="139">选一个</text><text x="784" y="158">此时才允许打分</text>
+									</g>
+									<g stroke="currentColor" stroke-width="1.4" marker-end="url(#ha)"><path d="M172 108h16M344 108h16M516 108h16M688 108h16"/></g>
+
+									<text x="20" y="240" text-anchor="start" font-size="11" fill="var(--ink-3)" font-family="JetBrains Mono, monospace" letter-spacing="1">Harness 级递归 · 跨任务</text>
+									<rect x="620" y="254" width="240" height="96" rx="12" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+									<text x="740" y="282" font-weight="600" font-size="15">05 反思</text>
+									<g font-size="12" fill="var(--ink-2)"><text x="740" y="306">每条编辑起了什么作用</text><text x="740" y="326">提炼一条可迁移的经验</text></g>
+									<rect x="250" y="254" width="300" height="96" rx="12" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+									<text x="400" y="282" font-weight="600" font-size="15">经验库（按领域）</text>
+									<g font-size="12" fill="var(--ink-2)"><text x="400" y="306">完整 harness + EXPERIENCE.md</text><text x="400" y="326">线索 · 教训 · 证据 · 置信度</text></g>
+									<g stroke="currentColor" stroke-width="1.4" fill="none" marker-end="url(#ha)">
+										<path d="M784 172v78"/>
+										<path d="M620 302h-66"/>
+										<path d="M300 254v-78" stroke="var(--accent)" color="var(--accent)" stroke-dasharray="5 4"/>
+									</g>
+									<text x="312" y="212" text-anchor="start" font-size="12" fill="var(--accent)">同领域的下一个任务</text>
+									<text x="312" y="230" text-anchor="start" font-size="12" fill="var(--accent)">提议时读取</text>
+									<text x="440" y="398" font-size="12" fill="var(--ink-3)">全程编辑模型看不到分数：打分只在选择落定之后由 core/judge.py 进行</text>
+								</g>
+							</svg>
+						</div>
+						<figcaption>图 1　并行模式下的一次完整流程（根据 core/recursion.py、selection.py、library.py 整理）。陶土色是会改动 harness 的步骤。</figcaption>
+					</figure>
+
+					<p>提议这一步有个巧妙的分工：每轮固定派出两种编辑，各管一摊，互不越界。</p>
+					<div class="two-col">
+						<div>
+							<h4>INV：Agent 怎么干活</h4>
+							<ul>
+								<li>只管流程、工具使用和收尾，不碰专业知识</li>
+								<li>沿运行轨迹找到<strong>最早出错的地方</strong>，用最便宜的组件修</li>
+								<li>重复的确定性操作写成 <code>scripts/</code> 脚本；一次性小错不加代码</li>
+							</ul>
+						</div>
+						<div>
+							<h4>DOM：从业者知道什么</h4>
+							<ul>
+								<li>只管产物结构、判断规则、领域检查</li>
+								<li>有明确触发场景的知识优先写成<strong>技能</strong>，平时不占上下文</li>
+								<li>两条硬规定：不许编造出处和标准；不把本任务的具体事实写进长期记忆</li>
+							</ul>
+						</div>
+					</div>
+					<p>到合成这一步，合成者能看到所有候选的 harness、它们各自的运行结果和编辑说明，可以合并几份、整份采纳其中一份，或者保持原样。提示词特别强调了「下行风险」：只要哪个候选的运行<strong>什么都没交出来</strong>，就要明确标出来，默认视为不安全的改动。</p>
+
+					<h3>并行和串行：预算一样，花法不同</h3>
+					<p><code>--mode parallel</code> 是「横向」：从同一份基础证据一次派出 2k 个候选，再独立做 k 次合成。<code>--mode sequential</code> 是「纵向」：每轮只派一对 INV / DOM，合成后的版本作为下一轮的起点，连续改 k 轮。</p>
+					<p>为了让两种模式能公平比较，<code>core/ledger.py</code> 把预算写成了一条恒等式，每跑完一个模式都要核对一遍：</p>
+					<p class="code-label"><span>harness2/core/ledger.py</span><span>节选</span></p>
+					<pre><code><span class="k">def</span> expected_rollouts(k: int) -> int:
+    <span class="s">"""R = 4k: k shared base + 2k candidates + k finals."""</span>
+    <span class="k">return</span> 4 * int(k)
+
+
+<span class="k">def</span> expected_sessions(k: int) -> int:
+    <span class="s">"""P = 3k: k INV + k DOM + k compositions."""</span>
+    <span class="k">return</span> 3 * int(k)</code></pre>
+					<p>账对不上就直接抛 <code>BudgetError</code>。它还会先查有没有重复的标签，因为两个阶段写到同一个运行 ID 时，后一个会悄悄覆盖前一个，计数恰好也能凑对。</p>
+
+					<h3>不偷看答案的四道防线</h3>
+					<p>这类「自我改进」系统最容易出的问题，是编辑模型间接看到了评分标准，结果学会的是「讨好评分」而不是「把活干好」。Harness² 在代码层面设了好几道闸：</p>
+					<ol>
+						<li><strong>提示词里不许出现评测词汇。</strong>基准提供的任务描述只要包含 benchmark、evaluation、grader、rubric、score 这几个词，构造时直接报错，要求「描述工作本身，而不是怎么衡量它」。</li>
+						<li><strong>运行记录里没有分数字段。</strong><code>RunView</code> 的注释就一句：<code>Never carries a score</code>。打分函数 <code>score()</code> 只能由 <code>core/judge.py</code> 调用，并且只在选择落定之后。</li>
+						<li><strong>评分痕迹绊线。</strong>任何 harness 文件的名字或内容里出现 <code>"pass_rate"</code>、<code>deterministic_eval_result</code> 这类评测输出特征，直接拒收，不能进经验库；基准还可以声明 <code>leak_globs</code>，把参考答案文件挡在证据之外。</li>
+						<li><strong>匿名盲选。</strong>最终候选被打乱后编号成 A、B、C…，选择者不知道哪个出自哪种编辑。打乱用的种子由任务 ID、k 和模式算出，重跑结果完全一致。</li>
+					</ol>
+					<p class="code-label"><span>harness2/core/spec.py · BenchPrompts</span><span>节选</span></p>
+					<pre><code><span class="k">for</span> bad <span class="k">in</span> (<span class="s">"benchmark"</span>, <span class="s">"evaluation"</span>, <span class="s">"grader"</span>, <span class="s">"rubric"</span>, <span class="s">"score"</span>):
+    <span class="k">if</span> bad <span class="k">in</span> low:
+        <span class="k">raise</span> ValueError(
+            f<span class="s">"BenchPrompts.{field_name} must describe the WORK, not its "</span>
+            f<span class="s">"measurement (found {bad!r}). Say what the practitioner needs."</span>
+        )</code></pre>
+
+					<h3>改坏了怎么办</h3>
+					<p>编辑模型交回的 harness 要过三关：文件必须在八类组件范围内，结构要合法（比如技能要能被触发），还要过基准自己的校验。不通过就把报错<strong>原样</strong>塞回去让它再改一次（<code>STAGE_ATTEMPTS = 2</code>）。还是不行，这个阶段就退回当前的 harness 继续往下走，整个流程不会断。</p>
+					<p>所以这里的报错信息是写给模型看的，读起来像操作指南。<code>BenchmarkAdapter.validate_tree</code> 的文档要求「用可执行的语言列出所有问题，这段话会原样作为重试反馈」。</p>
+
+					<h3>经验库：存整棵树，不存摘要</h3>
+					<p>每个任务结束后，反思步骤会逐条说明每个编辑起了什么作用，再提炼成四个字段：<strong>线索</strong>（什么情况下适用）、<strong>教训</strong>、<strong>证据</strong>、<strong>置信度</strong>。如果运行之间看不出能复用的差别，就只写一行 <code>NO_ENTRY</code>，不硬凑经验。</p>
+					<p>经验库按领域分目录，每条记录保存<strong>完整的 harness 文件树</strong>和一份 <code>EXPERIENCE.md</code>。<code>library.py</code> 的注释说得很直接：「携带整棵树，从不只存摘要」。同领域的下一个任务开始提议时，就能翻阅前面所有被采纳的方案。</p>
+
+					<div class="callout">
+						<b>和上一篇的联系</b>
+						<p>编辑模型除了走 OpenCode，还可以走 <code>claude_cli</code> 通道：<code>proposer.py</code> 直接以 <code>claude --dangerously-skip-permissions -p --output-format json</code> 调用 Claude Code。它判断失败时同时检查 <code>is_error</code> 和 <code>subtype</code>，正是我们在 <a href="claude-code.html#reproduce">Claude Code 实验一</a>里看到的那两个独立字段。</p>
+					</div>
+					<div class="callout is-note">
+						<b>安全提示</b>
+						<p>README 明确写着：执行器网络不受限，Codex 运行时关闭沙箱；走 claude_cli 通道时，编辑模型也跳过了权限确认。跑真实基准前应该放在隔离环境里，并按文档限制网络，免得 Agent 直接上网搜到公开的评分标准。</p>
+					</div>
+				</section>
+
+				<section id="reproduce">
+					<h2><span class="step-no">04</span>复现：跑通官方离线演示</h2>
+					<p>仓库自带 <code>harness2-demo</code>：用脚本代替编辑模型和选择模型，但<strong>递归流程、预算记账、经验库全是真代码</strong>，执行也是真的 Python 进程，不需要任何模型账号。</p>
+					<p>演示任务是对账：把 CSV 里带正负号的金额加起来。基础 harness 里埋了一个 bug：</p>
+					<p class="code-label"><span>harness2/demo.py · 基础 harness 的 scripts/summarize.py</span><span>节选</span></p>
+					<pre><code>total = sum((amount <span class="k">for</span> amount <span class="k">in</span> amounts <span class="k">if</span> amount > 0), Decimal(0))   <span class="c"># 只加了正数，漏掉了支出</span></code></pre>
+					<p>脚本化的编辑者会把 <code>if amount &gt; 0</code> 删掉，看框架能不能把这个改动探测出来、选中，再写进经验库。</p>
+
+					<div class="callout is-note">
+						<b>实验环境</b>
+						<p>Windows 11，Python 3.12.14，harness2 @ 1cfe254，<code>--k 2</code>，并行和串行两种模式都跑。官方只支持 Linux，所以下面先踩了两个坑。</p>
+					</div>
+
+					<h3>坑一：fcntl 是 Linux 专属</h3>
+					<p>第一次运行，两个任务都报 <code>ModuleNotFoundError: No module named 'fcntl'</code>。全仓库只有 <code>schedule.py</code> 用它给汇总文件加跨进程锁。演示是单进程，用一个什么都不做的同名替身顶上即可。</p>
+
+					<h3>坑二：Windows 路径分隔符让所有改动被静默丢弃</h3>
+					<p>换上替身后，流程跑完了，但所有候选的答案都还是错的 <code>Total: 105.25</code>，最后脚本选择者在候选里找不到正确答案，抛了 <code>StopIteration</code>。</p>
+					<p>挂上调试钩子一看，每个编辑阶段都退回了原始 harness，报错是：</p>
+					<pre><code>these files are off the editable surface and were not applied:
+plugin\README.md, scripts\README.md, skills\README.md, sub_agents\README.md</code></pre>
+					<p>根源在 <code>core/tree.py</code> 第 140 行：<code>rel = str(p.relative_to(d))</code>。Windows 上得到的是 <code>scripts\summarize.py</code>，和框架期望的 <code>scripts/summarize.py</code> 对不上，于是整份编辑被判定为「越界」而拒收。框架的兜底机制让它<strong>不会崩溃，只会悄悄退回原样</strong>，所以光看「2 个任务完成」根本发现不了问题。</p>
+					<p>修法是一行：把 <code>str(p.relative_to(d))</code> 换成 <code>p.relative_to(d).as_posix()</code>（第 167 行同理）。为了不改仓库源码，我写了一个启动脚本在运行时打上这两处补丁：</p>
+					<p class="code-label"><span>run_demo_win.py</span><span>完整代码</span></p>
+					<pre><code><span class="k">import</span> inspect, sys
+<span class="k">from</span> harness2.core <span class="k">import</span> tree
+
+src = inspect.getsource(tree)
+fixed = src.replace(<span class="s">"str(p.relative_to(d))"</span>, <span class="s">"p.relative_to(d).as_posix()"</span>).replace(
+    <span class="s">"str(p.relative_to(dest))"</span>, <span class="s">"p.relative_to(dest).as_posix()"</span>
+)
+<span class="k">assert</span> fixed.count(<span class="s">".as_posix()"</span>) == 2   <span class="c"># 上游改了就报错，提醒重新核对</span>
+exec(compile(fixed, tree.__file__, <span class="s">"exec"</span>), tree.__dict__)
+
+<span class="k">from</span> harness2.cli.demo <span class="k">import</span> main
+sys.exit(main())</code></pre>
+					<pre><code><span class="c"># 同目录再放一个 fcntl.py：定义 LOCK_EX、LOCK_UN 和一个空的 flock()</span>
+PYTHONPATH=<span class="s">"shim;."</span> python3.12 shim/run_demo_win.py --output runs/demo --k 2</code></pre>
+
+					<h3>结果</h3>
+					<pre><code>  [accounting] 1/2 ok           ledger-1
+  [accounting] 2/2 ok           ledger-2
+Local demo: 2 tasks completed; 0 failed.</code></pre>
+					<div class="table-wrap">
+						<table>
+							<thead><tr><th>任务</th><th>正确答案</th><th>基础 harness</th><th>候选 / 最终 harness</th></tr></thead>
+							<tbody>
+								<tr><td>ledger-1：100.25、−20.10、5.00</td><td>85.15</td><td>105.25 ✗</td><td>85.15 ✓（全部 12 次运行）</td></tr>
+								<tr><td>ledger-2：35.50、−10.25、−5.00</td><td>20.25</td><td>35.50 ✗</td><td>20.25 ✓（全部 12 次运行）</td></tr>
+							</tbody>
+						</table>
+					</div>
+					<p>账也对得上第 03 节的恒等式。每个任务跑 2 次共享的基础执行，再加并行、串行模式各 6 次探测和合成，两个任务一共 <strong>28 次执行</strong>。编辑调用一共 <strong>32 次</strong>：每个模式每个任务 3k = 6 次编辑，加 1 次选择、1 次反思。</p>
+					<p>经验库里写下了这样一条记录：</p>
+					<p class="code-label"><span>library/k2/agg/accounting/harnesses/ledger-1/EXPERIENCE.md</span><span>节选</span></p>
+					<pre><code>- adopted: `agg1`  (run `demo-oc-agg2/ledger-1/agg1`)
+
+## Transferable lesson
+- **cue**: When a ledger includes credits and debits
+- **lesson**: Include both signs when summing in scripts/summarize.py.
+- **evidence**: The scripts/summarize.py row -- removing the positive-only filter
+  changed the probe total to include the credits omitted by the base trajectory.
+- **confidence**: high for this observed arithmetic contrast</code></pre>
+					<p>汇总文件里，ledger-2 开始时 <code>library_entries_before</code> 为 1，说明第二个任务确实能读到第一个任务留下的经验。这就是第二层递归。</p>
+					<div class="callout">
+						<b>诚实说明</b>
+						<p>演示里的编辑者和选择者都是写死的脚本：选择者会自己把 CSV 加一遍，再挑答案对的候选，这相当于看了标准答案。真实运行时这一步由模型完成，看不到正确答案。所以这个演示证明的是<strong>流程和管线能跑通</strong>，不能证明效果。效果要看论文和真实基准。</p>
+					</div>
+				</section>
+
+				<section id="verdict">
+					<h2><span class="step-no">05</span>结论</h2>
+					<div class="verdict">
+						<span class="chip">ONE-LINER</span>
+						<p>Harness² 把「调 Agent 的提示词和工具」变成一个有预算、有对照、不看答案的自动实验：分两个方向各改一版，在同一任务上真跑一遍比差别，合成后盲选，再把经验按领域存下来留给下一个任务。</p>
+					</div>
+					<div class="two-col">
+						<div>
+							<h4>适合谁</h4>
+							<ul>
+								<li>在做 Agent 产品、想系统化地迭代提示词、技能、脚本的人</li>
+								<li>研究「不训练模型也能提升 Agent」的人：代码和论文配套，流程完整</li>
+								<li>想学怎么设计防作弊评测流程的人：四道防线很值得抄</li>
+							</ul>
+						</div>
+						<div>
+							<h4>什么时候不该用</h4>
+							<ul>
+								<li>只想要一个开箱即用的 Agent：它是改进框架，不是 Agent 本身</li>
+								<li>预算紧张：每个任务 4k 次完整运行加 3k 次编辑调用，真实基准下成本不低</li>
+								<li>Windows 本地开发：官方不支持，至少要处理本文的两个坑，最好用 Linux 或 WSL</li>
+							</ul>
+						</div>
+					</div>
+					<h3>猪猪的三条收获</h3>
+					<ol>
+						<li><strong>把「怎么做」和「懂什么」拆开改。</strong>INV 和 DOM 两种编辑互不越界，合成时再取长补短。自己调提示词时，也可以把流程问题和领域知识分开迭代。</li>
+						<li><strong>兜底机制会掩盖 bug。</strong>改动失败时「退回原样继续跑」让系统很稳，但也让 Windows 路径问题完全静默，任务照样显示完成。有兜底的地方，一定要把「兜了几次」也统计出来。</li>
+						<li><strong>评测要从结构上防泄漏。</strong>不靠「请不要看答案」的提示，而是让数据结构里根本没有分数字段，打分只在选择之后，再加上关键词绊线。</li>
+					</ol>
+					<h3>参考资料</h3>
+					<ul class="refs">
+						<li><a href="https://github.com/google-research/harness2" target="_blank" rel="noopener">google-research/harness2</a>：README.md、harness2/core/、harness2/demo.py</li>
+						<li><a href="https://arxiv.org/abs/2610.14224" target="_blank" rel="noopener">论文：Harness²: Recursive Agent Harnessing for an Open World</a></li>
+						<li><a href="https://harness2.github.io" target="_blank" rel="noopener">项目主页 harness2.github.io</a></li>
+					</ul>
+				</section>
+			</article>
+		</div>
+	</main>
+
+	<footer class="footer">
+		<div class="wrap footer-in">
+			<div class="footer-brand">
+				<img src="../assets/logo.webp" alt="" width="28" height="28">
+				<span>© 2026 czspig · 猪猪 Repo 研究所</span>
+			</div>
+			<nav class="footer-links" aria-label="页脚链接">
+				<a href="https://czspig.github.io/" target="_blank" rel="noopener">czspig 的博客</a>
+				<a href="https://github.com/czspig/czspig-repo-lab" target="_blank" rel="noopener">GitHub</a>
+			</nav>
+		</div>
+	</footer>
+
+	<script src="../assets/report.js"></script>
+</body>
+</html>
