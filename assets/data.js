@@ -43,6 +43,17 @@ const REPORTS = [
 		stack: ["TypeScript"],
 		date: "2026-10-21",
 	},
+	{
+		slug: "rea",
+		repo: "morluto/rea",
+		title: "REA 深度解析",
+		file: "reports/rea.html",
+		summary:
+			"给 Agent 一副逆向工程的放大镜：拆逆向工程 MCP 服务器 REA 的证据模型、不可信内容标记、212 个工具的副作用审计和省 token 的紧凑 schema。",
+		tags: ["AI Agent", "MCP", "逆向工程"],
+		stack: ["TypeScript", "Python"],
+		date: "2026-10-22",
+	},
 ];
 
 /* 实验日志：新的在后面 */
@@ -66,6 +77,11 @@ const LOG = [
 		date: "2026-10-21",
 		title: "第三份报告：OpenCode 深度解析",
 		body: "拆了 sst/opencode 的服务端架构、主循环、权限系统和插件机制，把权限求值移植成 Python 跑了一遍，发现同一套规则在 Windows 和 Linux 上可能给出不同结论。",
+	},
+	{
+		date: "2026-10-22",
+		title: "第四份报告：REA 深度解析",
+		body: "拆了 morluto/rea 这个逆向工程 MCP 服务器的分层架构、证据模型和防提示词注入设计，并统计了 212 个工具的副作用审计表：只有 5 个算只读。",
 	},
 ];
 
