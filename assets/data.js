@@ -54,6 +54,17 @@ const REPORTS = [
 		stack: ["TypeScript", "Python"],
 		date: "2026-10-22",
 	},
+	{
+		slug: "deepseek-harness",
+		repo: "deepseek-ai/deepseek-harness",
+		title: "DeepSeek Harness 解析",
+		file: "reports/deepseek-harness.html",
+		summary:
+			"模型 + Harness = Agent：汇总官方 README 与公开解析，看 DeepSeek 开源的 Agent 外壳如何做到一切皆插件、四种预设对应四种 harness，并交叉核对各家对不上的说法。",
+		tags: ["AI Agent", "Harness 工程", "资料汇编"],
+		stack: ["TypeScript"],
+		date: "2026-10-22",
+	},
 ];
 
 /* 实验日志：新的在后面 */
@@ -82,6 +93,11 @@ const LOG = [
 		date: "2026-10-22",
 		title: "第四份报告：REA 深度解析",
 		body: "拆了 morluto/rea 这个逆向工程 MCP 服务器的分层架构、证据模型和防提示词注入设计，并统计了 212 个工具的副作用审计表：只有 5 个算只读。",
+	},
+	{
+		date: "2026-10-22",
+		title: "第五份报告：DeepSeek Harness 解析",
+		body: "第一次不读源码、改用公开资料做解析：梳理了 dsh 的插件架构、四种预设和会话日志，并把各家在日期、版本、星数上的出入列表核对。",
 	},
 ];
 
