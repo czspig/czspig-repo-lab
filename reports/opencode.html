@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>OpenCode 深度解析 · 猪猪 Repo 研究所</title>
+	<meta name="description" content="开源编程 Agent OpenCode：客户端 / 服务端架构、按步推进的主循环、后写优先的权限规则、一切皆插件与 CodeMode，附权限求值的 Python 复现。">
+	<meta name="theme-color" content="#faf9f5">
+	<meta property="og:title" content="OpenCode 深度解析 · 猪猪 Repo 研究所">
+	<meta property="og:description" content="把 Agent 做成一台服务器：拆解开源编程 Agent OpenCode。">
+	<meta property="og:image" content="https://czspig.github.io/czspig-repo-lab/assets/cover.webp">
+	<meta property="og:url" content="https://czspig.github.io/czspig-repo-lab/reports/opencode.html">
+	<link rel="icon" type="image/png" href="../assets/favicon.png">
+	<script>
+		try {
+			var t = localStorage.getItem("repo-lab-theme");
+			if (t) document.documentElement.setAttribute("data-theme", t);
+		} catch (e) {}
+	</script>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400..700;1,8..60,400..600&display=swap">
+	<link rel="stylesheet" href="../assets/styles.css">
+	<link rel="stylesheet" href="../assets/report.css">
+</head>
+<body>
+	<header class="nav">
+		<div class="wrap nav-in">
+			<a class="brand" href="../" aria-label="猪猪 Repo 研究所 首页">
+				<img src="../assets/logo.webp" alt="" width="34" height="34">
+				<span>
+					<span class="brand-name">猪猪 Repo 研究所</span>
+					<span class="brand-sub">czspig-repo-lab</span>
+				</span>
+			</a>
+			<nav class="nav-links" aria-label="主导航">
+				<a href="../#ledger">研究台账</a>
+				<a href="../#method">研究方法</a>
+				<a href="../#log">实验日志</a>
+			</nav>
+			<div class="nav-actions">
+				<a class="icon-btn" href="https://github.com/czspig/czspig-repo-lab" target="_blank" rel="noopener" aria-label="GitHub 仓库">
+					<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3"/></svg>
+				</a>
+				<button class="icon-btn" id="themeBtn" type="button" aria-label="切换明暗主题">
+					<svg class="theme-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+					<svg class="theme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+				</button>
+			</div>
+		</div>
+	</header>
+
+	<main class="wrap">
+		<header class="report-hero">
+			<a class="crumb" href="../#ledger">← 返回研究台账</a>
+			<p class="eyebrow">Report No.003 · AI Agent</p>
+			<h1>OpenCode 深度解析：<br>把 Agent 做成一台服务器</h1>
+			<p class="lede">OpenCode 是开源的 AI 编程 Agent，可以看作 Claude Code 的开源同类：终端里对话，能读写代码、跑命令。不同的是它的引擎完全开源，能接近 30 家模型服务，也能接你电脑上的 Ollama。这一篇拆它的架构、主循环和权限系统，再用本地小模型真的让它干一次活。</p>
+			<dl class="meta">
+				<div><dt>研究对象</dt><dd><a href="https://github.com/sst/opencode" target="_blank" rel="noopener">sst/opencode</a><br>（README 里已写作 anomalyco/opencode）</dd></div>
+				<div><dt>研究版本</dt><dd>v2.1.2 @ 4d59657（2026-10-21）</dd></div>
+				<div><dt>许可</dt><dd>MIT</dd></div>
+				<div><dt>发布日期</dt><dd>2026-10-21</dd></div>
+			</dl>
+		</header>
+
+		<div class="doc">
+			<aside class="toc" aria-label="本文目录">
+				<p>目录</p>
+				<ol>
+					<li><a href="#sample">01 取样</a></li>
+					<li><a href="#map">02 测绘</a></li>
+					<li><a href="#dissect">03 解剖</a></li>
+					<li><a href="#reproduce">04 复现</a></li>
+					<li><a href="#verdict">05 结论</a></li>
+				</ol>
+			</aside>
+
+			<article class="prose">
+				<section id="sample">
+					<h2><span class="step-no">01</span>取样：它是什么，为什么值得拆</h2>
+					<p>研究所前两篇正好留了一个空：<a href="claude-code.html">Claude Code</a> 的引擎看不到源码，<a href="harness2.html">Harness²</a> 默认拿来干活的执行器又恰好是 OpenCode。拆完它，三篇就连成了「闭源产品 → 开源同类 → 改进它的框架」。</p>
+					<div class="table-wrap">
+						<table>
+							<thead><tr><th>样本卡</th><th></th></tr></thead>
+							<tbody>
+								<tr><td>规模</td><td>8582 个文件的 Bun + TypeScript 单仓库，34 个包，<code>packages/*/src</code> 下约 57 万行，核心包 <code>packages/core</code> 约 6.9 万行</td></tr>
+								<tr><td>技术栈</td><td>Bun 运行时、<a href="https://effect.website" target="_blank" rel="noopener">Effect</a> 函数式框架、SQLite（Drizzle）、Vercel AI SDK</td></tr>
+								<tr><td>入口</td><td>终端 TUI、桌面 App（Beta）、网页、VS Code 插件，以及给 Zed 等编辑器用的 ACP 协议</td></tr>
+								<tr><td>模型</td><td>约 30 家服务商插件：OpenAI、Bedrock、Vertex、OpenRouter、GitHub Copilot……以及本地的 Ollama、LM Studio、vLLM</td></tr>
+							</tbody>
+						</table>
+					</div>
+					<p>和 Claude Code 最直观的区别：<strong>模型随便换，代码全公开。</strong>但读完源码会发现，真正有意思的是下面几个架构决定。</p>
+				</section>
+
+				<section id="map">
+					<h2><span class="step-no">02</span>测绘：先看清全貌</h2>
+					<h3>界面只是客户端</h3>
+					<p>仓库根目录的 <code>AGENTS.md</code> 写了一条依赖铁律：</p>
+					<p class="code-label"><span>AGENTS.md</span><span>原文节选</span></p>
+					<pre><code>Keep runtime dependencies directed from Schema to Core and Protocol, then from Core and
+Protocol to Server. Client runtime code may depend on Schema and Protocol but never Core
+or Server; `sdk` composes Client, Core, and Server.</code></pre>
+					<p>翻译过来：Agent 的引擎（Core）跑在一个<strong>本地后台服务</strong>（Server）里，终端界面、桌面 App、网页都只是连上去的客户端，只认识协议（Protocol），碰不到引擎内部。开发文档里的 <code>opencode service status</code>、<code>opencode service get password</code> 就是在查这个后台服务的地址和本地凭据。</p>
+					<figure class="figure">
+						<div class="scroll">
+							<svg viewBox="0 0 880 400" role="img" aria-labelledby="ocfig1">
+								<title id="ocfig1">OpenCode 架构图：多个客户端通过协议连接本地后台服务，服务内部是 Core 引擎，Core 通过插件接入模型服务商、工具和 MCP</title>
+								<defs><marker id="oa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="currentColor"/></marker></defs>
+								<g font-family="Inter, PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="currentColor" text-anchor="middle">
+									<text x="20" y="18" text-anchor="start" font-size="11" fill="var(--ink-3)" font-family="JetBrains Mono, monospace" letter-spacing="1">客户端 · 只依赖 Schema + Protocol</text>
+									<g fill="var(--surface)" stroke="var(--rule)" stroke-width="1.5">
+										<rect x="20" y="28" width="150" height="46" rx="10"/><rect x="186" y="28" width="150" height="46" rx="10"/><rect x="352" y="28" width="150" height="46" rx="10"/><rect x="518" y="28" width="150" height="46" rx="10"/><rect x="684" y="28" width="176" height="46" rx="10"/>
+									</g>
+									<text x="95" y="56">终端 TUI</text><text x="261" y="56">桌面 App</text><text x="427" y="56">网页 / 远程</text><text x="593" y="56">VS Code 插件</text><text x="772" y="56">编辑器（ACP 协议）</text>
+									<g stroke="currentColor" stroke-width="1.3" opacity="0.55" marker-end="url(#oa)"><path d="M95 74v34M261 74v34M427 74v34M593 74v34M772 74v34"/></g>
+
+									<rect x="20" y="112" width="840" height="200" rx="16" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+									<text x="40" y="136" text-anchor="start" font-weight="600">本地后台服务 Server</text>
+									<text x="840" y="136" text-anchor="end" font-size="12" fill="var(--ink-2)">HTTP API + 事件流 · 本地凭据鉴权</text>
+									<rect x="40" y="150" width="800" height="146" rx="12" fill="var(--surface)" stroke="var(--rule)" stroke-width="1.5"/>
+									<text x="60" y="174" text-anchor="start" font-weight="600">Core 引擎</text>
+									<g fill="var(--bg-2)" stroke="var(--rule)">
+										<rect x="60" y="188" width="180" height="92" rx="9"/><rect x="254" y="188" width="180" height="92" rx="9"/><rect x="448" y="188" width="180" height="92" rx="9"/><rect x="642" y="188" width="180" height="92" rx="9"/>
+									</g>
+									<g font-weight="600"><text x="150" y="212">Session 主循环</text><text x="344" y="212">Tool 注册表</text><text x="538" y="212">Permission</text><text x="732" y="212">Snapshot</text></g>
+									<g font-size="12" fill="var(--ink-2)">
+										<text x="150" y="236">按 step 推进</text><text x="150" y="256">消息落库 SQLite</text>
+										<text x="344" y="236">内置工具也是插件</text><text x="344" y="256">默认走 CodeMode</text>
+										<text x="538" y="236">规则后者优先</text><text x="538" y="256">默认 ask</text>
+										<text x="732" y="236">影子 git 仓库</text><text x="732" y="256">可撤销改动</text>
+									</g>
+
+									<g stroke="currentColor" stroke-width="1.3" opacity="0.55" marker-end="url(#oa)"><path d="M150 312v34M440 312v34M732 312v34"/></g>
+									<g fill="var(--surface)" stroke="var(--line)" stroke-width="1.5">
+										<rect x="20" y="350" width="260" height="44" rx="10"/><rect x="300" y="350" width="280" height="44" rx="10"/><rect x="600" y="350" width="260" height="44" rx="10"/>
+									</g>
+									<text x="150" y="377">约 30 个模型服务商插件</text><text x="440" y="377">MCP 服务器 · Skills · 自定义插件</text><text x="730" y="377">本地文件系统 · Shell · git</text>
+								</g>
+							</svg>
+						</div>
+						<figcaption>图 1　OpenCode 的客户端 / 服务端结构（根据 AGENTS.md 与 packages/ 目录整理）。</figcaption>
+					</figure>
+					<p>好处很实际：会话存在服务和数据库里，不依附于某个窗口；终端和桌面 App 可以连同一个服务；还能通过隧道从远程连进来。服务启动时会把自己的地址、进程号和访问密码写进一个本地文件，客户端读这个文件来连接。</p>
+
+					<h3>核心包地图</h3>
+					<pre><code>packages/
+├── core/src/
+│   ├── session/runner/llm.ts   <span class="c"># 主循环：一个会话一步一步往下推</span>
+│   ├── session/runner/step.ts  <span class="c"># 单步：发请求、流式接收、执行工具、落库</span>
+│   ├── session/compaction.ts   <span class="c"># 上下文快满时自动压缩</span>
+│   ├── permission.ts           <span class="c"># 权限规则求值与询问</span>
+│   ├── tool.ts                 <span class="c"># 工具注册表</span>
+│   ├── tool/plugin/            <span class="c"># 内置工具：read、edit、write、patch、shell、grep、glob、webfetch、subagent…</span>
+│   ├── plugin/agent.ts         <span class="c"># 内置 Agent：Build、General、Explore 等</span>
+│   ├── plugin/provider/        <span class="c"># 模型服务商插件，ollama.ts 也在这里</span>
+│   └── snapshot.ts             <span class="c"># 用独立的 git 仓库记录文件快照</span>
+├── codemode/     <span class="c"># 自研的「工具调用专用」JavaScript 子集解释器</span>
+├── server/       <span class="c"># 本地 HTTP 服务</span>
+├── protocol/     <span class="c"># 客户端与服务端之间的协议</span>
+├── tui/ app/ desktop/ web/   <span class="c"># 各种客户端</span>
+├── plugin/       <span class="c"># 第三方插件的编写接口</span>
+└── cli/          <span class="c"># opencode 命令本身，含 run、serve、ACP</span></code></pre>
+				</section>
+
+				<section id="dissect">
+					<h2><span class="step-no">03</span>解剖：读到关键代码</h2>
+
+					<h3>主循环：一步一步往前推</h3>
+					<p>Agent 的心脏在 <code>session/runner/llm.ts</code> 的 <code>runStep</code>。每一「步」是一次完整的模型请求，加上这次请求里所有的工具调用。每步开始前都要过几道检查：</p>
+					<ol>
+						<li><strong>先看要不要压缩。</strong>上下文快满了就先压缩历史，压缩完换一个新的回复 ID 重来。</li>
+						<li><strong>再看步数用完没有。</strong>到了 Agent 设定的步数上限，就在消息末尾塞一段「已达最大步数，只许用文字总结」的提示，并把 <code>toolChoice</code> 设成 <code>none</code>。</li>
+						<li><strong>发请求、执行工具。</strong>交给 <code>step.ts</code> 的 <code>attempt</code>，它还会趁模型思考时顺手拍一张文件快照，留着撤销用。</li>
+						<li><strong>按结果分流。</strong><code>attempt</code> 返回六种结局之一，主循环逐个处理。</li>
+					</ol>
+					<div class="table-wrap">
+						<table>
+							<thead><tr><th>结局</th><th>主循环怎么处理</th></tr></thead>
+							<tbody>
+								<tr><td><code>Completed</code></td><td>正常结束；如果模型还调用了工具，就进入下一步</td></tr>
+								<tr><td><code>Retry</code></td><td>按重试策略等待后重发（比如服务商限流）</td></tr>
+								<tr><td><code>Continue</code></td><td>流式输出半路断了，补一条「请接着说」再来</td></tr>
+								<tr><td><code>OutputLimit</code></td><td>回答被输出长度截断，让模型接着写；<strong>连续三次被截断就放弃</strong></td></tr>
+								<tr><td><code>Compacted</code></td><td>请求时发现上下文溢出，压缩后重来，但只给一次机会</td></tr>
+								<tr><td><code>RecoverFull</code></td><td>连接在模型开始输出之前就断了，整个请求原样重发</td></tr>
+							</tbody>
+						</table>
+					</div>
+					<p>有个细节很能说明这份代码的功力：</p>
+					<p class="code-label"><span>packages/core/src/session/runner/llm.ts</span><span>节选</span></p>
+					<pre><code><span class="c">// Keep tool definitions on the final Step to preserve the provider's cached prefix.</span>
+toolChoice: stepLimitReached ? <span class="s">"none"</span> : <span class="k">undefined</span>,</code></pre>
+					<p>最后一步明明不许用工具，却<strong>不删工具定义</strong>，只把 <code>toolChoice</code> 设成 <code>none</code>。原因是删掉会改变请求的前缀，服务商那边的提示词缓存就失效了，这一步会更慢也更贵。</p>
+
+					<h3>权限：后写的规则说了算</h3>
+					<p>权限系统只有一个核心函数，十几行：</p>
+					<p class="code-label"><span>packages/core/src/permission.ts</span><span>节选</span></p>
+					<pre><code><span class="k">export function</span> evaluate(action, resource, ...rulesets) {
+  <span class="k">return</span> rulesets.flat()
+    .findLast((rule) =&gt; Wildcard.match(action, rule.action) &amp;&amp; Wildcard.match(resource, rule.resource))
+    ?? { action, resource: <span class="s">"*"</span>, effect: <span class="s">"ask"</span> }
+}</code></pre>
+					<p>三条规矩：规则按顺序叠起来，<strong>最后一条匹配的生效</strong>；一条都不匹配就<strong>问用户</strong>；如果连对应的 Agent 都找不到，就用一条「全部拒绝」兜底。用户点过「总是允许」的，会按项目存进数据库，下次自动放行。</p>
+					<p>内置的 Explore 子代理把「后者优先」用得很漂亮：</p>
+					<p class="code-label"><span>packages/core/src/plugin/agent.ts · Explore</span><span>节选</span></p>
+					<pre><code>{ action: <span class="s">"*"</span>,    resource: <span class="s">"*"</span>,             effect: <span class="s">"deny"</span> },   <span class="c">// 先全部禁止</span>
+{ action: <span class="s">"read"</span>, resource: <span class="s">"*"</span>,             effect: <span class="s">"allow"</span> },  <span class="c">// 读文件放开</span>
+{ action: <span class="s">"read"</span>, resource: <span class="s">"*.env"</span>,         effect: <span class="s">"ask"</span> },    <span class="c">// 但 .env 要问</span>
+{ action: <span class="s">"read"</span>, resource: <span class="s">"*.env.*"</span>,       effect: <span class="s">"ask"</span> },
+{ action: <span class="s">"read"</span>, resource: <span class="s">"*.env.example"</span>, effect: <span class="s">"allow"</span> },  <span class="c">// 示例文件又放开</span></code></pre>
+					<p>从宽到窄一层层覆盖，读起来就像一份说明书。对比 <a href="claude-code.html">Claude Code</a> 用 Hook 脚本拦截，OpenCode 把大部分权限做成了纯数据，规则本身就能审查。</p>
+
+					<h3>一切皆插件</h3>
+					<p>OpenCode 自己的东西大多也是用插件接口写的：</p>
+					<ul>
+						<li><strong>模型服务商</strong>：<code>plugin/provider/</code> 下每家一个文件。<code>ollama.ts</code> 会请求本机 <code>127.0.0.1:11434</code> 的 <code>/api/tags</code> 自动发现模型，再读每个模型的能力列表。只有声明了 <code>tools</code> 能力的模型才会被当成能调工具的 Agent 模型。</li>
+						<li><strong>内置工具</strong>：<code>tool/plugin/</code> 里的 read、edit、shell 等，和第三方插件、MCP 工具注册方式完全一样。同名工具后注册的覆盖先注册的，撤销注册后原来的又会露出来。</li>
+						<li><strong>内置 Agent</strong>：Build（默认）、Plan、General、Explore，以及隐藏的 Title、Summary、Compaction，都在 <code>plugin/agent.ts</code> 里用同一套 <code>transform</code> 接口定义。</li>
+					</ul>
+					<p>第三方插件能改的范围很大：<code>agent</code>、<code>command</code>、<code>mcp</code>、<code>model</code>、<code>provider</code>、<code>skill</code>、<code>tool</code> 等十一个领域都有 <code>transform</code> 钩子，另外还能在发请求前改上下文、自定义重试策略。</p>
+
+					<h3>CodeMode：让模型写代码来调工具</h3>
+					<p>这是最「研究性」的设计。工具默认会被放进 CodeMode：模型不是一次调一个工具，而是写一小段代码，在里面调用多个工具、处理结果，最后只把需要的东西返回。这个想法最早来自 Cloudflare，好处是多步操作能在一次往返里完成，中间结果也不用塞进上下文。</p>
+					<p>OpenCode 没有去沙箱真正的 JavaScript，而是<strong>自己写了一个解释器</strong>（<code>packages/codemode</code>），只实现一部分 JS 语法：</p>
+					<ul>
+						<li>没有 <code>process</code>、文件系统、网络、<code>import</code>，也没有定时器；想碰外部世界只能通过宿主给的工具</li>
+						<li>程序结束时还没完成的工具调用会被中断</li>
+						<li>不支持的语法直接返回带位置的诊断信息</li>
+					</ul>
+					<p>「只实现需要的部分」比「把危险的部分关掉」安全得多：没实现的功能，自然不存在被绕过的可能。</p>
+				</section>
+
+				<section id="reproduce">
+					<h2><span class="step-no">04</span>复现：把权限求值搬出来跑一遍</h2>
+					<div class="callout is-note">
+						<b>先说明</b>
+						<p>本来计划在本机用 Ollama 的 granite4.1:3b 小模型真跑一次 OpenCode，但 Windows 版可执行文件有 219 MB，在本机网络下两次都没下完，于是改成一个更小、但同样基于真实代码的实验：把权限系统的两个核心函数照着源码移植成 Python，用 Explore 子代理的真实规则去跑。</p>
+					</div>
+					<p>移植的对象是 <code>permission.ts</code> 里的 <code>evaluate</code>（倒序找第一条匹配，找不到就 ask）和 <code>util/wildcard.ts</code> 里的 <code>match</code>：</p>
+					<p class="code-label"><span>packages/core/src/util/wildcard.ts</span><span>原文</span></p>
+					<pre><code><span class="k">export function</span> match(input: string, pattern: string) {
+  <span class="k">const</span> normalized = input.replaceAll(<span class="s">"\\"</span>, <span class="s">"/"</span>)
+  <span class="k">let</span> escaped = pattern
+    .replaceAll(<span class="s">"\\"</span>, <span class="s">"/"</span>)
+    .replace(<span class="s">/[.+^${}()|[\]\\]/g</span>, <span class="s">"\\$&amp;"</span>)
+    .replace(<span class="s">/\*/g</span>, <span class="s">".*"</span>)
+    .replace(<span class="s">/\?/g</span>, <span class="s">"."</span>)
+
+  <span class="k">if</span> (escaped.endsWith(<span class="s">" .*"</span>)) escaped = escaped.slice(0, -3) + <span class="s">"( .*)?"</span>
+
+  <span class="k">return new</span> RegExp(<span class="s">"^"</span> + escaped + <span class="s">"$"</span>, process.platform === <span class="s">"win32"</span> ? <span class="s">"si"</span> : <span class="s">"s"</span>).test(normalized)
+}</code></pre>
+					<p class="code-label"><span>perm.py</span><span>移植后的核心</span></p>
+					<pre><code><span class="k">def</span> match(text, pattern, windows=<span class="k">True</span>):
+    text = text.replace(<span class="s">"\\"</span>, <span class="s">"/"</span>)
+    p = <span class="s">""</span>.join(<span class="s">".*"</span> <span class="k">if</span> c == <span class="s">"*"</span> <span class="k">else</span> <span class="s">"."</span> <span class="k">if</span> c == <span class="s">"?"</span> <span class="k">else</span> c <span class="k">if</span> c == <span class="s">" "</span> <span class="k">else</span> re.escape(c)
+                for c <span class="k">in</span> pattern.replace(<span class="s">"\\"</span>, <span class="s">"/"</span>))
+    <span class="k">if</span> p.endswith(<span class="s">" .*"</span>):
+        p = p[:-3] + <span class="s">"( .*)?"</span>
+    <span class="k">return</span> re.fullmatch(p, text, re.S | (re.I <span class="k">if</span> windows <span class="k">else</span> 0)) <span class="k">is not None</span>
+
+
+<span class="k">def</span> evaluate(action, resource, rules):
+    hit = [r <span class="k">for</span> r <span class="k">in</span> rules <span class="k">if</span> match(action, r[0]) <span class="k">and</span> match(resource, r[1])]
+    <span class="k">return</span> hit[-1][2] <span class="k">if</span> hit <span class="k">else</span> <span class="s">"ask"</span>      <span class="c"># findLast，找不到就 ask</span></code></pre>
+
+					<h3>结果</h3>
+					<div class="table-wrap">
+						<table>
+							<thead><tr><th>请求</th><th>结果</th><th>为什么</th></tr></thead>
+							<tbody>
+								<tr><td><code>read src/app.py</code></td><td>allow</td><td>只命中 <code>read *</code></td></tr>
+								<tr><td><code>read .env</code></td><td>ask</td><td>后面的 <code>read *.env</code> 覆盖了前面的 allow</td></tr>
+								<tr><td><code>read config\prod.env</code></td><td>ask</td><td>反斜杠先被换成 <code>/</code>，而且 <code>*</code> 会跨目录匹配</td></tr>
+								<tr><td><code>read .env.local</code></td><td>ask</td><td>命中 <code>*.env.*</code></td></tr>
+								<tr><td><code>read .env.example</code></td><td>allow</td><td>最后一条把示例文件重新放开</td></tr>
+								<tr><td><code>read SECRETS.ENV</code></td><td>ask（Windows）</td><td>Windows 上不区分大小写</td></tr>
+								<tr><td><code>edit src/app.py</code></td><td>deny</td><td>只命中第一条 <code>* *</code> deny：Explore 只读</td></tr>
+								<tr><td><code>subagent general</code></td><td>deny</td><td>同上，不许再派子代理</td></tr>
+								<tr><td>空规则集下 <code>edit calc.py</code></td><td>ask</td><td>没有任何匹配，默认询问</td></tr>
+							</tbody>
+						</table>
+					</div>
+					<p>还有一个小机关：模式以「空格 + <code>*</code>」结尾时，后面那段变成可选。所以 <code>git *</code> 既匹配 <code>git status</code>，也匹配光秃秃的 <code>git</code>，但不会匹配 <code>gitk</code>。实测结果：<code>True</code> 和 <code>False</code>。</p>
+
+					<div class="callout">
+						<b>发现</b>
+						<p>同一套规则，<strong>在不同系统上结论可能不同</strong>。<code>SECRETS.ENV</code> 在 Windows 上是 ask；换到 Linux，匹配区分大小写，<code>*.env</code> 不命中，它会落回 <code>read *</code> 变成 allow。大小写混用的敏感文件名，在 Linux 上要自己补一条规则。</p>
+					</div>
+					<div class="callout is-note">
+						<b>对照上一篇</b>
+						<p><a href="harness2.html#reproduce">Harness²</a> 在 Windows 上栽在了反斜杠路径上，所有改动被静默丢弃。OpenCode 的通配函数第一行就是 <code>replaceAll("\\", "/")</code>，最后再按平台决定是否忽略大小写。跨平台的坑，它提前填好了。</p>
+					</div>
+
+					<h3>想自己跑一次完整的 Agent？</h3>
+					<p>按官方 README 安装后，用本地 Ollama 模型就能离线试，不花钱。下面的 granite4.1:3b 是我电脑上已有、并且声明了 tools 能力的模型：以下命令本文没有实际运行：</p>
+					<pre><code>npm i -g @opencode/cli@latest
+opencode run -m ollama/granite4.1:3b <span class="s">"修复 calc.py 里 average 的 bug"</span>          <span class="c"># 非交互：需要授权的操作会被自动拒绝</span>
+opencode run -m ollama/granite4.1:3b --auto <span class="s">"修复 calc.py 里 average 的 bug"</span>   <span class="c"># --auto：未被明确禁止的操作自动放行</span></code></pre>
+					<p>按源码 <code>run/noninteractive.ts</code> 的逻辑，不加 <code>--auto</code> 时权限请求会被自动拒绝，模型会收到一句「这次非交互运行没法问用户，请求已被拒绝，请不用这个操作继续」，然后接着想别的办法。</p>
+				</section>
+
+				<section id="verdict">
+					<h2><span class="step-no">05</span>结论</h2>
+					<div class="verdict">
+						<span class="chip">ONE-LINER</span>
+						<p>OpenCode 把编程 Agent 做成了一台本地服务器：界面只是客户端，模型、工具、Agent 全靠插件装上去，权限是一张「后写的说了算」的规则表。它不只是 Claude Code 的开源平替，而是一套可以被拆开、改造、嵌进别的系统里的 Agent 底座。</p>
+					</div>
+					<div class="two-col">
+						<div>
+							<h4>适合谁</h4>
+							<ul>
+								<li>想换模型、用本地模型或多家服务商比价的人</li>
+								<li>要把编程 Agent 嵌进自己产品或研究流程的人，比如 Harness² 就把它当执行器</li>
+								<li>想读一份生产级 Agent 源码的人：主循环、压缩、重试、权限都写得很讲究</li>
+							</ul>
+						</div>
+						<div>
+							<h4>什么时候不该用</h4>
+							<ul>
+								<li>只想开箱即用、不想配置模型的人：Claude Code 这类一体化产品更省心</li>
+								<li>想快速读懂整个项目：57 万行、34 个包，还大量使用 Effect，上手门槛不低</li>
+								<li>网络条件差又要用本地模型：光可执行文件就两百多兆</li>
+							</ul>
+						</div>
+					</div>
+					<h3>猪猪的三条收获</h3>
+					<ol>
+						<li><strong>把引擎和界面拆开。</strong>引擎做成服务，界面只认协议，多端共享会话就是顺手的事。自己的项目哪怕只有一个界面，也值得把核心逻辑写成不依赖界面的服务。</li>
+						<li><strong>权限做成数据，而不是代码。</strong>一张从宽到窄的规则表，比散落在各处的 if 判断好审查得多；但要记得规则匹配本身也有平台差异。</li>
+						<li><strong>省钱的细节藏在边角里。</strong>最后一步保留工具定义只为了命中提示词缓存，这种决定只有真正盯过账单的团队才会写。</li>
+					</ol>
+					<h3>参考资料</h3>
+					<ul class="refs">
+						<li><a href="https://github.com/sst/opencode" target="_blank" rel="noopener">sst/opencode</a>：AGENTS.md、packages/core/src/、packages/codemode/README.md、packages/plugin/src/README.md</li>
+						<li><a href="https://opencode.ai" target="_blank" rel="noopener">OpenCode 官网与文档</a></li>
+						<li><a href="https://blog.cloudflare.com/code-mode/" target="_blank" rel="noopener">Cloudflare：Code Mode</a>（CodeMode 思路的出处）</li>
+					</ul>
+				</section>
+			</article>
+		</div>
+	</main>
+
+	<footer class="footer">
+		<div class="wrap footer-in">
+			<div class="footer-brand">
+				<img src="../assets/logo.webp" alt="" width="28" height="28">
+				<span>© 2026 czspig · 猪猪 Repo 研究所</span>
+			</div>
+			<nav class="footer-links" aria-label="页脚链接">
+				<a href="https://czspig.github.io/" target="_blank" rel="noopener">czspig 的博客</a>
+				<a href="https://github.com/czspig/czspig-repo-lab" target="_blank" rel="noopener">GitHub</a>
+			</nav>
+		</div>
+	</footer>
+
+	<script src="../assets/report.js"></script>
+</body>
+</html>

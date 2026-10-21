@@ -32,6 +32,17 @@ const REPORTS = [
 		stack: ["Python"],
 		date: "2026-10-20",
 	},
+	{
+		slug: "opencode",
+		repo: "sst/opencode",
+		title: "OpenCode 深度解析",
+		file: "reports/opencode.html",
+		summary:
+			"把 Agent 做成一台服务器：拆开源编程 Agent OpenCode 的客户端 / 服务端架构、按步推进的主循环、后写优先的权限规则、一切皆插件与 CodeMode，附权限求值的 Python 复现。",
+		tags: ["AI Agent", "权限设计", "插件架构"],
+		stack: ["TypeScript"],
+		date: "2026-10-21",
+	},
 ];
 
 /* 实验日志：新的在后面 */
@@ -50,6 +61,11 @@ const LOG = [
 		date: "2026-10-20",
 		title: "第二份报告：Harness² 深度解析",
 		body: "拆了 google-research/harness2 的两层递归、预算恒等式和防泄漏设计，并在 Windows 上补齐两处兼容问题后跑通了官方离线演示。",
+	},
+	{
+		date: "2026-10-21",
+		title: "第三份报告：OpenCode 深度解析",
+		body: "拆了 sst/opencode 的服务端架构、主循环、权限系统和插件机制，把权限求值移植成 Python 跑了一遍，发现同一套规则在 Windows 和 Linux 上可能给出不同结论。",
 	},
 ];
 
