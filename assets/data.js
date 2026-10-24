@@ -64,6 +64,16 @@ const REPORTS = [
 		tags: ["AI Agent", "Harness 工程", "资料汇编"],
 		stack: ["TypeScript"],
 		date: "2026-10-22",
+	},	{
+		slug: "codex",
+		repo: "openai/codex",
+		title: "Codex CLI 解析",
+		file: "reports/codex.html",
+		summary:
+			"规则之外，再加一个笼子：拆 Codex CLI 的安全链路，取最严的命令规则、组合命令逐段判、危险命令识别、默认拒绝的系统沙箱与 Guardian AI 审批，附规则引擎的 Python 复现。",
+		tags: ["AI Agent", "沙箱", "权限设计"],
+		stack: ["Rust"],
+		date: "2026-10-24",
 	},
 ];
 
@@ -98,6 +108,11 @@ const LOG = [
 		date: "2026-10-22",
 		title: "第五份报告：DeepSeek Harness 解析",
 		body: "第一次不读源码、改用公开资料做解析：梳理了 dsh 的插件架构、四种预设和会话日志，并把各家在日期、版本、星数上的出入列表核对。",
+	},
+	{
+		date: "2026-10-24",
+		title: "第六份报告：Codex CLI 解析",
+		body: "只按需下载了 18 个安全相关文件，拆了 Codex 的命令规则、危险命令识别、系统沙箱和 Guardian；用 Python 跑官方示例规则，发现规则顺序在「取最严」和「后者优先」两种语义下结论可能相反。",
 	},
 ];
 
