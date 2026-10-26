@@ -74,6 +74,16 @@ const REPORTS = [
 		tags: ["AI Agent", "沙箱", "权限设计"],
 		stack: ["Rust"],
 		date: "2026-10-24",
+	},	{
+		slug: "ollama",
+		repo: "ollama/ollama",
+		title: "Ollama 解析",
+		file: "reports/ollama.html",
+		summary:
+			"模型在你电脑里是怎么住下来的：拆本地模型运行器 Ollama 的调度器、keep_alive、按显存决定的默认上下文和工具能力判断，附本机实测：冷启动 45 秒、热启动 86 毫秒，上下文只给了 4k。",
+		tags: ["本地模型", "推理服务", "AI Agent"],
+		stack: ["Go"],
+		date: "2026-10-26",
 	},
 ];
 
@@ -113,6 +123,11 @@ const LOG = [
 		date: "2026-10-24",
 		title: "第六份报告：Codex CLI 解析",
 		body: "只按需下载了 18 个安全相关文件，拆了 Codex 的命令规则、危险命令识别、系统沙箱和 Guardian；用 Python 跑官方示例规则，发现规则顺序在「取最严」和「后者优先」两种语义下结论可能相反。",
+	},
+	{
+		date: "2026-10-26",
+		title: "第七份报告：Ollama 解析",
+		body: "研究所第一次拆 Go 项目：读了 Ollama 的调度器和能力判断，并在本机实测，冷启动比热启动慢约 500 倍，训练支持 13 万 token 的模型默认只加载了 4096 上下文。",
 	},
 ];
 

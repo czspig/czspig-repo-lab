@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Ollama 解析 · 猪猪 Repo 研究所</title>
+	<meta name="description" content="本地模型运行器 Ollama：调度器怎么决定加载与卸载、keep_alive、按显存决定的默认上下文、工具能力判断，附本机冷启动与上下文实测。">
+	<meta name="theme-color" content="#faf9f5">
+	<meta property="og:title" content="Ollama 解析 · 猪猪 Repo 研究所">
+	<meta property="og:description" content="模型在你电脑里是怎么住下来的：拆解 Ollama 的调度与默认值。">
+	<meta property="og:image" content="https://czspig.github.io/czspig-repo-lab/assets/cover.webp">
+	<meta property="og:url" content="https://czspig.github.io/czspig-repo-lab/reports/ollama.html">
+	<link rel="icon" type="image/png" href="../assets/favicon.png">
+	<script>
+		try {
+			var t = localStorage.getItem("repo-lab-theme");
+			if (t) document.documentElement.setAttribute("data-theme", t);
+		} catch (e) {}
+	</script>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400..700;1,8..60,400..600&display=swap">
+	<link rel="stylesheet" href="../assets/styles.css">
+	<link rel="stylesheet" href="../assets/report.css">
+</head>
+<body>
+	<header class="nav">
+		<div class="wrap nav-in">
+			<a class="brand" href="../" aria-label="猪猪 Repo 研究所 首页">
+				<img src="../assets/logo.webp" alt="" width="34" height="34">
+				<span>
+					<span class="brand-name">猪猪 Repo 研究所</span>
+					<span class="brand-sub">czspig-repo-lab</span>
+				</span>
+			</a>
+			<nav class="nav-links" aria-label="主导航">
+				<a href="../#ledger">研究台账</a>
+				<a href="../#method">研究方法</a>
+				<a href="../#log">实验日志</a>
+			</nav>
+			<div class="nav-actions">
+				<a class="icon-btn" href="https://github.com/czspig/czspig-repo-lab" target="_blank" rel="noopener" aria-label="GitHub 仓库">
+					<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3"/></svg>
+				</a>
+				<button class="icon-btn" id="themeBtn" type="button" aria-label="切换明暗主题">
+					<svg class="theme-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+					<svg class="theme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+				</button>
+			</div>
+		</div>
+	</header>
+
+	<main class="wrap">
+		<header class="report-hero">
+			<a class="crumb" href="../#ledger">← 返回研究台账</a>
+			<p class="eyebrow">Report No.007 · 本地模型</p>
+			<h1>Ollama 解析：<br>模型在你电脑里是怎么「住」下来的</h1>
+			<p class="lede">前几篇拆的都是模型外面那一圈（harness）。这一篇往下挖一层：一个大模型文件，是怎么被加载进显卡、对外提供接口、什么时候被请出内存的。研究对象是最流行的本地模型运行器 Ollama，实验就在我自己的电脑上跑。</p>
+			<dl class="meta">
+				<div><dt>研究对象</dt><dd><a href="https://github.com/ollama/ollama" target="_blank" rel="noopener">ollama/ollama</a></dd></div>
+				<div><dt>研究版本</dt><dd>源码 main @ 66ab848（2026-10-25）<br>本机运行 0.40.6</dd></div>
+				<div><dt>许可</dt><dd>MIT</dd></div>
+				<div><dt>发布日期</dt><dd>2026-10-26</dd></div>
+			</dl>
+		</header>
+
+		<div class="doc">
+			<aside class="toc" aria-label="本文目录">
+				<p>目录</p>
+				<ol>
+					<li><a href="#sample">01 取样</a></li>
+					<li><a href="#map">02 测绘</a></li>
+					<li><a href="#dissect">03 解剖</a></li>
+					<li><a href="#reproduce">04 复现</a></li>
+					<li><a href="#verdict">05 结论</a></li>
+				</ol>
+			</aside>
+
+			<article class="prose">
+				<div class="callout is-note">
+					<b>本篇范围</b>
+					<p>仓库共 1512 个文件，这次只按需下载了 14 个（调度器、运行器、配置、能力判断和几篇文档，约 6200 行）。实验调用的是我电脑上已经装好的 Ollama 和 granite4.1:3b 模型，没有下载任何新东西。</p>
+				</div>
+
+				<section id="sample">
+					<h2><span class="step-no">01</span>取样：它是什么，为什么值得拆</h2>
+					<p>Ollama 让你用一条命令在自己电脑上跑开源大模型：<code>ollama run 模型名</code>，下载、加载、对话一气呵成；它同时在 <code>127.0.0.1:11434</code> 开一个 HTTP 服务，别的程序都能来调用。</p>
+					<div class="table-wrap">
+						<table>
+							<thead><tr><th>样本卡</th><th></th></tr></thead>
+							<tbody>
+								<tr><td>语言</td><td>主体是 Go，研究所第一次拆 Go 项目</td></tr>
+								<tr><td>推理引擎</td><td>固定版本的 llama.cpp 加一组兼容补丁（<code>llama/</code>）；苹果芯片上另有基于 MLX 的运行器（<code>mlxrunner/</code>）</td></tr>
+								<tr><td>接口</td><td>自家 API，外加 OpenAI 兼容和 Anthropic 兼容接口</td></tr>
+								<tr><td>和本系列的关系</td><td>官方文档里有 Claude Code、Codex、DeepSeek Harness 的接入页面，<code>ollama launch claude</code> 就能让 Claude Code 跑在本地模型上</td></tr>
+							</tbody>
+						</table>
+					</div>
+					<p>研究所前面拆了 <a href="claude-code.html">Claude Code</a>、<a href="opencode.html">OpenCode</a>、<a href="codex.html">Codex</a>、<a href="deepseek-harness.html">DeepSeek Harness</a>，它们都能接到 Ollama 上。所以这篇想回答一个很实际的问题：<strong>拿本地模型跑编程 Agent，Ollama 这一层有哪些坑？</strong></p>
+				</section>
+
+				<section id="map">
+					<h2><span class="step-no">02</span>测绘：先看清全貌</h2>
+					<figure class="figure">
+						<div class="scroll">
+							<svg viewBox="0 0 880 300" role="img" aria-labelledby="olfig1">
+								<title id="olfig1">Ollama 结构：命令行、桌面 App 和各种 Agent 通过 HTTP 接口访问 Ollama 服务，服务里的调度器为每个模型启动一个独立的运行器进程，运行器基于 llama.cpp 或 MLX 调用显卡</title>
+								<defs><marker id="oa2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="currentColor"/></marker></defs>
+								<g font-family="Inter, PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="currentColor" text-anchor="middle">
+									<g fill="var(--surface)" stroke="var(--line)" stroke-width="1.5">
+										<rect x="20" y="16" width="190" height="46" rx="10"/><rect x="230" y="16" width="190" height="46" rx="10"/><rect x="440" y="16" width="420" height="46" rx="10"/>
+									</g>
+									<text x="115" y="44">ollama 命令行</text><text x="325" y="44">桌面 App</text><text x="650" y="44">Claude Code · Codex · OpenCode · dsh …</text>
+									<g stroke="currentColor" stroke-width="1.3" opacity="0.55" marker-end="url(#oa2)"><path d="M115 62v26M325 62v26M650 62v26"/></g>
+
+									<rect x="20" y="92" width="840" height="120" rx="14" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+									<text x="40" y="116" text-anchor="start" font-weight="600">Ollama 服务 · 127.0.0.1:11434</text>
+									<text x="840" y="116" text-anchor="end" font-size="12" fill="var(--ink-2)">原生 API · OpenAI 兼容 · Anthropic 兼容</text>
+									<g fill="var(--surface)" stroke="var(--rule)" stroke-width="1.5">
+										<rect x="40" y="128" width="250" height="70" rx="10"/><rect x="306" y="128" width="268" height="70" rx="10"/><rect x="590" y="128" width="250" height="70" rx="10"/>
+									</g>
+									<g font-weight="600"><text x="165" y="154">请求队列</text><text x="440" y="154">调度器 sched.go</text><text x="715" y="154">模型库</text></g>
+									<g font-size="12" fill="var(--ink-2)"><text x="165" y="176">默认最多排 512 个，满了回 503</text><text x="440" y="176">装得下吗？要请谁出去？留多久？</text><text x="715" y="176">GGUF 文件 · 能力判断</text></g>
+
+									<g stroke="currentColor" stroke-width="1.3" opacity="0.55" marker-end="url(#oa2)"><path d="M300 212v24M580 212v24"/></g>
+									<g fill="var(--surface)" stroke="var(--line)" stroke-width="1.5">
+										<rect x="160" y="240" width="270" height="48" rx="10"/><rect x="450" y="240" width="270" height="48" rx="10"/>
+									</g>
+									<text x="295" y="262" font-weight="600">运行器进程 · 模型 A</text><text x="295" y="280" font-size="12" fill="var(--ink-2)">llama.cpp（固定版本 + 补丁）</text>
+									<text x="585" y="262" font-weight="600">运行器进程 · 模型 B</text><text x="585" y="280" font-size="12" fill="var(--ink-2)">苹果芯片上可用 MLX</text>
+								</g>
+							</svg>
+						</div>
+						<figcaption>图 1　Ollama 的结构（根据 server/sched.go、llm/server.go、llama/README.md 整理）。每个加载中的模型是一个独立的子进程。</figcaption>
+					</figure>
+					<p>两个值得一提的工程选择：</p>
+					<ul>
+						<li><strong>每个模型一个子进程。</strong>Go 写的服务负责排队、调度和接口；真正做矩阵运算的是单独的运行器进程。一个模型的运行器出问题，通常不会把整个服务一起拖垮。</li>
+						<li><strong>llama.cpp 固定版本，升级要按清单验。</strong><code>llama/README.md</code> 开头就提醒：升级 llama.cpp「影响的不只是编译」，还可能改变模型加载、显卡识别、调度器的输入和日志格式，后面附了一整份审查清单。依赖一个更新飞快的上游项目时，这种「固定版本 + 补丁 + 升级清单」的做法很稳。</li>
+					</ul>
+				</section>
+
+				<section id="dissect">
+					<h2><span class="step-no">03</span>解剖：读到关键代码</h2>
+
+					<h3>调度器：装得下吗，请谁出去</h3>
+					<p>每个请求先进队列，调度器 <code>processPending</code> 逐个处理：</p>
+					<ol>
+						<li>这个模型已经加载了，而且参数（比如上下文长度）没变？直接复用。</li>
+						<li>没加载，并且已加载的模型数没超上限？算一下显存够不够，够就加载。上限默认是<strong>每块显卡 3 个</strong>，纯 CPU 时也是 3 个。</li>
+						<li>装不下？挑一个已加载的模型请出去，等它卸载完再试。</li>
+						<li>加载过程中内存溢出崩了？把其他模型全部卸掉，<strong>只再试一次</strong>；第二次还崩就直接报错，不无限重试。</li>
+					</ol>
+					<p>「请谁出去」的规则在 <code>findRunnerToUnload</code>：先按<strong>保留时长从短到长</strong>排序，优先挑当前空闲的；都在忙，就等保留时长最短的那个。</p>
+					<p class="code-label"><span>server/sched.go · ByDurationAndName</span><span>节选</span></p>
+					<pre><code><span class="k">func</span> (a ByDurationAndName) Less(i, j <span class="k">int</span>) <span class="k">bool</span> {
+	<span class="c">// Primary sort by session duration (uint64 to handle negatives)</span>
+	d1 := uint64(a[i].sessionDuration)
+	d2 := uint64(a[j].sessionDuration)
+	...</code></pre>
+					<p>这里有个小技巧：<code>keep_alive: -1</code> 表示「永远别卸载」，负数转成无符号整数后会变成一个巨大的数，排序时自然排在最后，于是「永久驻留」的模型最后才会被请出去，不需要额外写特殊判断。</p>
+
+					<h3>keep_alive：模型在内存里留多久</h3>
+					<p>每次请求完成后，模型会在内存里再留一段时间，下次请求就不用重新加载：</p>
+					<div class="table-wrap">
+						<table>
+							<thead><tr><th>keep_alive</th><th>效果</th></tr></thead>
+							<tbody>
+								<tr><td>不设置</td><td>默认留 <strong>5 分钟</strong>（可用环境变量 <code>OLLAMA_KEEP_ALIVE</code> 改全局默认）</td></tr>
+								<tr><td><code>"30m"</code>、<code>"45s"</code> 等</td><td>留指定时长；每次被使用都会重新计时</td></tr>
+								<tr><td><code>-1</code></td><td>永远留着</td></tr>
+								<tr><td><code>0</code></td><td>用完立刻卸载</td></tr>
+							</tbody>
+						</table>
+					</div>
+					<p>请求里带的 <code>keep_alive</code> 会覆盖全局设置。编程 Agent 隔一会儿就会发请求，保留时间太短就会反复冷启动，下面的实验会看到冷启动有多慢。</p>
+
+					<h3>上下文长度：最容易踩的坑</h3>
+					<p><code>docs/context-length.mdx</code> 写着，Ollama <strong>按显存大小</strong>决定默认上下文长度：</p>
+					<div class="table-wrap">
+						<table>
+							<thead><tr><th>显存</th><th>默认上下文</th></tr></thead>
+							<tbody>
+								<tr><td>小于 24 GiB</td><td><strong>4k</strong></td></tr>
+								<tr><td>24 – 48 GiB</td><td>32k</td></tr>
+								<tr><td>48 GiB 及以上</td><td>256k</td></tr>
+							</tbody>
+						</table>
+					</div>
+					<p>同一份文档又说，Agent、编程工具这类任务<strong>至少要 64k</strong>；Claude Code 和 Codex 的接入页面也都写了「64k 以上」。也就是说，大多数家用显卡的用户，什么都不改就让 Agent 接本地模型，拿到的只是 4k 的上下文：系统提示词加上工具定义可能就占满了（<a href="deepseek-harness.html">DeepSeek Harness</a> 那篇提到，一个最简单的任务第一次请求就要约 1.3 万 token）。</p>
+					<p>代码里还有几条相关规则：设置的长度超过模型训练时的上限，会被截到上限（<code>effectiveContext</code>）；同时处理 N 个请求时，显存占用会按 N 倍增长；自动设置的上下文在加载时内存不够，调度器会自动调小再试（<code>reduceAutoNumCtxForLoadOOM</code>）。</p>
+
+					<h3>「支持工具调用」是怎么判断的</h3>
+					<p><a href="opencode.html">OpenCode</a> 只把声明了 <code>tools</code> 能力的本地模型当作能干活的 Agent 模型。这个能力标签是 Ollama 给的，对于 GGUF 模型，主要判断方式朴素得出人意料：</p>
+					<p class="code-label"><span>server/images.go</span><span>原文</span></p>
+					<pre><code><span class="k">func</span> chatTemplateHasToolSupport(chatTemplate <span class="k">string</span>) <span class="k">bool</span> {
+	<span class="k">return</span> strings.Contains(chatTemplate, <span class="s">"tools"</span>) || strings.Contains(chatTemplate, <span class="s">"tool_call"</span>)
+}</code></pre>
+					<p>也就是看模型自带的对话模板里有没有出现 <code>tools</code> 或 <code>tool_call</code> 这两个词。旁边另有一个更严格的检查 <code>chatTemplateHasToolRoundTrip</code>，要求模板能处理「工具调用 → 工具结果」的完整往返。字符串匹配简单高效，但也意味着：<strong>标了 tools，只说明模板「提到了」工具，不代表模型真能用好工具。</strong></p>
+				</section>
+
+				<section id="reproduce">
+					<h2><span class="step-no">04</span>复现：在我电脑上量一量</h2>
+					<p>用 Python 标准库直接调本机 Ollama 的接口（绕过系统代理），模型是 granite4.1:3b（34 亿参数，Q4_K_M 量化）。流程：查版本和能力 → 先卸载确保冷启动 → 连续请求两次 → 看内存里的状态 → 用 <code>keep_alive: 0</code> 卸载。</p>
+					<p class="code-label"><span>probe.py</span><span>核心片段</span></p>
+					<pre><code><span class="k">for</span> label <span class="k">in</span> (<span class="s">"cold"</span>, <span class="s">"warm"</span>):
+    r = call(<span class="s">"/api/generate"</span>, {<span class="s">"model"</span>: MODEL, <span class="s">"prompt"</span>: <span class="s">"Reply with one word: hello"</span>,
+                               <span class="s">"stream"</span>: <span class="k">False</span>, <span class="s">"keep_alive"</span>: <span class="s">"45s"</span>, <span class="s">"options"</span>: {<span class="s">"num_predict"</span>: 8}})
+    print(label, ms(r[<span class="s">"load_duration"</span>]), ms(r[<span class="s">"prompt_eval_duration"</span>]), ms(r[<span class="s">"eval_duration"</span>]))</code></pre>
+					<h3>结果</h3>
+					<div class="table-wrap">
+						<table>
+							<thead><tr><th>项目</th><th>实测</th></tr></thead>
+							<tbody>
+								<tr><td>Ollama 版本</td><td>0.40.6</td></tr>
+								<tr><td>能力</td><td><code>completion</code>、<code>tools</code></td></tr>
+								<tr><td>对话模板（6843 个字符）里有没有 <code>tools</code> / <code>tool_call</code></td><td>都有，和源码的判断规则吻合</td></tr>
+								<tr><td>模型训练时的上下文</td><td>131,072</td></tr>
+								<tr><td><strong>实际加载的上下文</strong></td><td><strong>4,096</strong></td></tr>
+								<tr><td>占用</td><td>2.5 GB，全部在显卡上</td></tr>
+							</tbody>
+						</table>
+					</div>
+					<div class="table-wrap">
+						<table>
+							<thead><tr><th>同一个请求</th><th>总耗时</th><th>加载模型</th><th>读入提示词</th><th>生成</th></tr></thead>
+							<tbody>
+								<tr><td>冷启动（第一次）</td><td><strong>45,244 ms</strong></td><td>25,700 ms</td><td>17,794 ms</td><td>1,649 ms</td></tr>
+								<tr><td>热启动（第二次）</td><td><strong>86 ms</strong></td><td>12 ms</td><td>34 ms</td><td>11 ms</td></tr>
+							</tbody>
+						</table>
+					</div>
+					<p>最后用 <code>keep_alive: 0</code> 再发一次，查询加载列表立刻变空，模型被卸载了。</p>
+					<div class="callout">
+						<b>发现</b>
+						<p><strong>一，</strong>训练时支持 13 万 token 的模型，在我的电脑上只拿到 4096，说明这台机器被归进了「显存小于 24 GiB」那一档，和文档的默认规则一致。要拿它跑编程 Agent，必须先用 <code>OLLAMA_CONTEXT_LENGTH</code> 或接口参数调大，前提是显存装得下。<strong>二，</strong>冷启动比热启动慢了约 500 倍。除了加载模型的 25.7 秒，第一次读入提示词也花了 17.8 秒，而第二次只要 34 毫秒，多出来的时间应该是显卡第一次运行时的预热开销。对 Agent 来说，把 <code>keep_alive</code> 设长一点，几乎是最划算的优化。</p>
+					</div>
+					<h3>想自己试试？</h3>
+					<pre><code>ollama ps                                      <span class="c"># 看已加载模型的 CONTEXT 和 UNTIL 两列</span>
+OLLAMA_CONTEXT_LENGTH=64000 ollama serve       <span class="c"># 以 64k 上下文启动服务（显存要够）</span>
+ollama launch claude                           <span class="c"># 让 Claude Code 跑在本地模型上</span></code></pre>
+				</section>
+
+				<section id="verdict">
+					<h2><span class="step-no">05</span>结论</h2>
+					<div class="verdict">
+						<span class="chip">ONE-LINER</span>
+						<p>Ollama 用一个 Go 写的调度器管理一群模型子进程：谁先进内存、谁被请出去、留多久，都有清楚的规则。拿它给编程 Agent 当后端时，真正要盯的是两个默认值：小显存下只有 4k 的上下文，以及 5 分钟就会过期的 keep_alive。</p>
+					</div>
+					<div class="two-col">
+						<div>
+							<h4>适合谁</h4>
+							<ul>
+								<li>想在本地、离线、零调用费用地用开源模型的人</li>
+								<li>需要数据不出本机的场景</li>
+								<li>想给 Claude Code、Codex、OpenCode 找一个本地后端做实验的人</li>
+							</ul>
+						</div>
+						<div>
+							<h4>什么时候不该用</h4>
+							<ul>
+								<li>显存不够又要长上下文：开到 64k 可能装不下，或者被迫部分放到 CPU 上，速度大幅下降</li>
+								<li>对效果要求高的复杂编程任务：本地小模型和云端大模型差距仍然明显</li>
+								<li>高并发服务：默认每个模型一次只处理 1 个请求，并发要调参数并付出成倍的显存</li>
+							</ul>
+						</div>
+					</div>
+					<h3>猪猪的三条收获</h3>
+					<ol>
+						<li><strong>默认值决定了大多数人的体验。</strong>4k 上下文对聊天够用，对 Agent 不够；接本地模型前先看一眼 <code>ollama ps</code> 的 CONTEXT 列。</li>
+						<li><strong>能力标签要打个问号。</strong>「支持 tools」只是模板里出现了这个词，模型实际用得好不好还得自己测。</li>
+						<li><strong>依赖飞速更新的上游，要固定版本并配升级清单。</strong>Ollama 对 llama.cpp 的处理方式，放到任何项目里都适用。</li>
+					</ol>
+					<h3>参考资料</h3>
+					<ul class="refs">
+						<li><a href="https://github.com/ollama/ollama" target="_blank" rel="noopener">ollama/ollama</a>：server/sched.go、server/images.go、llm/server.go、envconfig/config.go、llama/README.md</li>
+						<li><a href="https://docs.ollama.com/context-length" target="_blank" rel="noopener">Ollama 文档：上下文长度</a>（仓库内 docs/context-length.mdx）</li>
+						<li><a href="https://docs.ollama.com/faq" target="_blank" rel="noopener">Ollama 文档：FAQ</a>（keep_alive、并发与队列）</li>
+						<li>仓库内 docs/integrations/claude-code.mdx、codex.mdx、deepseek-harness.mdx</li>
+					</ul>
+				</section>
+			</article>
+		</div>
+	</main>
+
+	<footer class="footer">
+		<div class="wrap footer-in">
+			<div class="footer-brand">
+				<img src="../assets/logo.webp" alt="" width="28" height="28">
+				<span>© 2026 czspig · 猪猪 Repo 研究所</span>
+			</div>
+			<nav class="footer-links" aria-label="页脚链接">
+				<a href="https://czspig.github.io/" target="_blank" rel="noopener">czspig 的博客</a>
+				<a href="https://github.com/czspig/czspig-repo-lab" target="_blank" rel="noopener">GitHub</a>
+			</nav>
+		</div>
+	</footer>
+
+	<script src="../assets/report.js"></script>
+</body>
+</html>
