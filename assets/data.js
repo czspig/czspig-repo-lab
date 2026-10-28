@@ -84,6 +84,16 @@ const REPORTS = [
 		tags: ["本地模型", "推理服务", "AI Agent"],
 		stack: ["Go"],
 		date: "2026-10-26",
+	},	{
+		slug: "mcp",
+		repo: "modelcontextprotocol/modelcontextprotocol",
+		title: "MCP 解析",
+		file: "reports/mcp.html",
+		summary:
+			"Agent 世界的通用插头，刚刚换了芯：读 MCP 规范 2026-07-28 版，看它如何去掉握手和会话变成无状态、用多轮请求代替服务器反问，并用 Python 标准库手写一个迷你 MCP 服务器跑通全流程。",
+		tags: ["MCP", "协议", "AI Agent"],
+		stack: ["TypeScript", "Python"],
+		date: "2026-10-28",
 	},
 ];
 
@@ -128,6 +138,11 @@ const LOG = [
 		date: "2026-10-26",
 		title: "第七份报告：Ollama 解析",
 		body: "研究所第一次拆 Go 项目：读了 Ollama 的调度器和能力判断，并在本机实测，冷启动比热启动慢约 500 倍，训练支持 13 万 token 的模型默认只加载了 4096 上下文。",
+	},
+	{
+		date: "2026-10-28",
+		title: "第八份报告：MCP 解析",
+		body: "回到整个系列的公共底座：读了 MCP 规范最新版的无状态改版，并用约 60 行 Python 手写了一个支持 server/discover 和多轮请求的迷你服务器，量出无状态每个请求多付约 225 字节。",
 	},
 ];
 

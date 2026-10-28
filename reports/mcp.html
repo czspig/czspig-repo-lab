@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>MCP 解析 · 猪猪 Repo 研究所</title>
+	<meta name="description" content="Model Context Protocol 规范解析：2026-07-28 版去掉握手与会话变为无状态、server/discover、多轮请求 MRTR、工具提示与两类错误，附 Python 标准库手写的迷你 MCP 服务器。">
+	<meta name="theme-color" content="#faf9f5">
+	<meta property="og:title" content="MCP 解析 · 猪猪 Repo 研究所">
+	<meta property="og:description" content="Agent 世界的通用插头，刚刚换了芯：解析 MCP 协议与它的无状态改版。">
+	<meta property="og:image" content="https://czspig.github.io/czspig-repo-lab/assets/cover.webp">
+	<meta property="og:url" content="https://czspig.github.io/czspig-repo-lab/reports/mcp.html">
+	<link rel="icon" type="image/png" href="../assets/favicon.png">
+	<script>
+		try {
+			var t = localStorage.getItem("repo-lab-theme");
+			if (t) document.documentElement.setAttribute("data-theme", t);
+		} catch (e) {}
+	</script>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400..700;1,8..60,400..600&display=swap">
+	<link rel="stylesheet" href="../assets/styles.css">
+	<link rel="stylesheet" href="../assets/report.css">
+</head>
+<body>
+	<header class="nav">
+		<div class="wrap nav-in">
+			<a class="brand" href="../" aria-label="猪猪 Repo 研究所 首页">
+				<img src="../assets/logo.webp" alt="" width="34" height="34">
+				<span>
+					<span class="brand-name">猪猪 Repo 研究所</span>
+					<span class="brand-sub">czspig-repo-lab</span>
+				</span>
+			</a>
+			<nav class="nav-links" aria-label="主导航">
+				<a href="../#ledger">研究台账</a>
+				<a href="../#method">研究方法</a>
+				<a href="../#log">实验日志</a>
+			</nav>
+			<div class="nav-actions">
+				<a class="icon-btn" href="https://github.com/czspig/czspig-repo-lab" target="_blank" rel="noopener" aria-label="GitHub 仓库">
+					<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3"/></svg>
+				</a>
+				<button class="icon-btn" id="themeBtn" type="button" aria-label="切换明暗主题">
+					<svg class="theme-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+					<svg class="theme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+				</button>
+			</div>
+		</div>
+	</header>
+
+	<main class="wrap">
+		<header class="report-hero">
+			<a class="crumb" href="../#ledger">← 返回研究台账</a>
+			<p class="eyebrow">Report No.008 · 协议</p>
+			<h1>MCP 解析：<br>Agent 世界的通用插头，刚刚换了芯</h1>
+			<p class="lede">研究所前七篇几乎每篇都绕不开 MCP（Model Context Protocol）：REA 是 MCP 服务器，Claude Code、Codex、OpenCode、DeepSeek Harness 都是 MCP 客户端。这一篇直接读协议规范本身，并且赶上了一次大改版：最新版 MCP 去掉了握手和会话，变成了「无状态」协议。最后用几十行 Python 手写一个迷你 MCP 服务器，把每条消息摆出来看。</p>
+			<dl class="meta">
+				<div><dt>研究对象</dt><dd><a href="https://github.com/modelcontextprotocol/modelcontextprotocol" target="_blank" rel="noopener">modelcontextprotocol/modelcontextprotocol</a><br><a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">modelcontextprotocol.io</a></dd></div>
+				<div><dt>研究版本</dt><dd>规范 2026-07-28<br>仓库 @ ccaf910（2026-10-27）</dd></div>
+				<div><dt>许可</dt><dd>正从 MIT 迁移到 Apache 2.0；文档为 CC-BY-4.0</dd></div>
+				<div><dt>发布日期</dt><dd>2026-10-28</dd></div>
+			</dl>
+		</header>
+
+		<div class="doc">
+			<aside class="toc" aria-label="本文目录">
+				<p>目录</p>
+				<ol>
+					<li><a href="#sample">01 取样</a></li>
+					<li><a href="#map">02 测绘</a></li>
+					<li><a href="#dissect">03 解剖</a></li>
+					<li><a href="#reproduce">04 复现</a></li>
+					<li><a href="#verdict">05 结论</a></li>
+				</ol>
+			</aside>
+
+			<article class="prose">
+				<div class="callout is-note">
+					<b>本篇范围</b>
+					<p>规范仓库有 969 个文件，这次只下载了 2026-07-28 版的 10 篇核心章节（约 2500 行）和对应的 TypeScript 数据定义。实验是我自己用 Python 标准库写的玩具实现，只覆盖规范的一小部分，没有经过官方一致性测试。</p>
+				</div>
+
+				<section id="sample">
+					<h2><span class="step-no">01</span>取样：它是什么，为什么值得拆</h2>
+					<p>MCP 规定了「AI 应用」和「给 AI 提供能力的服务」之间怎么说话。有了它，一个工具服务写一次，就能被所有支持 MCP 的 Agent 使用；一个 Agent 支持一次 MCP，就能接上成千上万个现成的工具服务。</p>
+					<div class="table-wrap">
+						<table>
+							<thead><tr><th>样本卡</th><th></th></tr></thead>
+							<tbody>
+								<tr><td>底层格式</td><td>JSON-RPC 2.0：一个请求带 <code>id</code>、<code>method</code>、<code>params</code>，回一个 <code>result</code> 或 <code>error</code></td></tr>
+								<tr><td>传输方式</td><td>stdio（本地子进程，标准输入输出里一行一条消息）和 Streamable HTTP（远程服务）</td></tr>
+								<tr><td>版本</td><td>用日期命名：2024-11-05、2025-03-26、2025-06-18、2025-11-25、<strong>2026-07-28</strong>，另有 draft</td></tr>
+								<tr><td>仓库内容</td><td>规范文档、用 TypeScript 写的数据定义（<code>schema.ts</code>，另生成 JSON Schema）、示例、改进提案（SEP）</td></tr>
+							</tbody>
+						</table>
+					</div>
+					<p>它值得拆，一是因为它是整个系列的公共底座；二是因为刚发布的 2026-07-28 版做了好几处<strong>不兼容的大改</strong>，看规范怎么演进，比看某个实现更能理解设计取舍。</p>
+				</section>
+
+				<section id="map">
+					<h2><span class="step-no">02</span>测绘：先看清全貌</h2>
+					<h3>三类角色，两头能力</h3>
+					<p>MCP 里有三类角色：<strong>宿主</strong>（Host，比如 Claude Code 这个应用）、<strong>客户端</strong>（宿主里负责连某个服务的那部分）、<strong>服务器</strong>（提供能力的一方，比如 REA）。能力分两头：</p>
+					<div class="table-wrap">
+						<table>
+							<thead><tr><th>谁提供</th><th>能力</th><th>说明</th></tr></thead>
+							<tbody>
+								<tr><td rowspan="3">服务器</td><td>Tools 工具</td><td>由模型自己决定调用的函数，最常用</td></tr>
+								<tr><td>Resources 资源</td><td>可读取的数据，比如文件、数据库记录</td></tr>
+								<tr><td>Prompts 提示词</td><td>预设的提示词模板，常以斜杠命令的形式出现</td></tr>
+								<tr><td rowspan="3">客户端</td><td>Elicitation 征询</td><td>服务器需要向用户要信息时，由客户端去问</td></tr>
+								<tr><td>Sampling 采样</td><td>服务器借用客户端的模型生成内容（本版起<strong>已弃用</strong>）</td></tr>
+								<tr><td>Roots 根目录</td><td>告诉服务器能访问哪些目录（本版起<strong>已弃用</strong>）</td></tr>
+							</tbody>
+						</table>
+					</div>
+
+					<h3>2026-07-28 版：从「先握手再说话」到「每句话都自报家门」</h3>
+					<figure class="figure">
+						<div class="scroll">
+							<svg viewBox="0 0 880 330" role="img" aria-labelledby="mcpfig1">
+								<title id="mcpfig1">新旧两版 MCP 的对比：旧版先 initialize 握手建立会话再调用工具；新版每个请求在 _meta 里自带版本和能力，可选先调用 server/discover，需要更多输入时服务器返回 input_required，客户端带上答案重试</title>
+								<defs><marker id="ma" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="currentColor"/></marker></defs>
+								<g font-family="Inter, PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="currentColor" text-anchor="middle">
+									<rect x="20" y="14" width="400" height="302" rx="14" fill="var(--bg-2)" stroke="var(--rule)" stroke-width="1.5"/>
+									<rect x="460" y="14" width="400" height="302" rx="14" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+									<text x="220" y="40" font-weight="600">2025-11-25 及以前：有状态</text>
+									<text x="660" y="40" font-weight="600">2026-07-28：无状态</text>
+									<g fill="var(--surface)" stroke="var(--rule)" stroke-width="1.3">
+										<rect x="60" y="58" width="320" height="40" rx="9"/><rect x="60" y="112" width="320" height="40" rx="9"/><rect x="60" y="166" width="320" height="40" rx="9"/><rect x="60" y="220" width="320" height="40" rx="9"/>
+										<rect x="500" y="58" width="320" height="40" rx="9" stroke-dasharray="5 4"/><rect x="500" y="112" width="320" height="40" rx="9"/><rect x="500" y="166" width="320" height="40" rx="9"/><rect x="500" y="220" width="320" height="40" rx="9"/>
+									</g>
+									<text x="220" y="83">initialize（商量版本和能力）</text>
+									<text x="220" y="137">notifications/initialized</text>
+									<text x="220" y="191">tools/list（在会话里）</text>
+									<text x="220" y="245">tools/call（在会话里）</text>
+									<text x="660" y="83">server/discover（可选）</text>
+									<text x="660" y="137">tools/list + _meta（版本、能力、身份）</text>
+									<text x="660" y="191">tools/call + _meta</text>
+									<text x="660" y="245">需要更多信息？回 input_required</text>
+									<g stroke="currentColor" stroke-width="1.3" opacity="0.6" marker-end="url(#ma)"><path d="M220 98v10M220 152v10M220 206v10M660 98v10M660 152v10M660 206v10"/></g>
+									<path d="M820 240c30 0 30-49 0-49" fill="none" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#ma)" color="var(--accent)"/>
+									<text x="220" y="294" font-size="12" fill="var(--ink-2)">连接 = 会话，服务器要记住每个连接的状态</text>
+									<text x="660" y="286" font-size="12" fill="var(--ink-2)">客户端带着答案用新 id 重发同一请求</text>
+									<text x="660" y="304" font-size="12" fill="var(--ink-2)">服务器任何一台实例都能处理</text>
+								</g>
+							</svg>
+						</div>
+						<figcaption>图 1　新旧两版 MCP 的调用流程对比（根据 2026-07-28 版 changelog、server/discover、basic/patterns/mrtr 整理）。</figcaption>
+					</figure>
+					<p>这一版 changelog 里的「重大改动」主要有这几条：</p>
+					<ul>
+						<li><strong>去掉握手。</strong><code>initialize</code> 和 <code>notifications/initialized</code> 都没了，每个请求都在 <code>_meta</code> 里自带协议版本、客户端能力和身份。</li>
+						<li><strong>去掉会话。</strong>HTTP 传输不再有 <code>Mcp-Session-Id</code>，工具列表也不再因连接而异。</li>
+						<li><strong>新增 <code>server/discover</code>。</strong>服务器必须实现，用来一次性告诉客户端自己支持哪些版本、有什么能力。</li>
+						<li><strong>新增「多轮请求」（MRTR）。</strong>服务器不能再主动向客户端发请求，改为「回一个需要补充信息的结果，等客户端带着答案重试」。</li>
+						<li><strong>所有结果都带 <code>resultType</code>。</strong>普通结果是 <code>complete</code>，需要补充信息的是 <code>input_required</code>。</li>
+					</ul>
+				</section>
+
+				<section id="dissect">
+					<h2><span class="step-no">03</span>解剖：读到关键设计</h2>
+
+					<h3>为什么要「无状态」</h3>
+					<p>MRTR 那一章的开头说得很直白：这样做是为了处理服务器向用户要信息的场景，同时<strong>不需要服务器实例之间共享存储，也不需要「会话粘连」的负载均衡</strong>。翻译成大白话：以前一个连接只能由一台服务器从头服务到尾，现在任何一个请求都能被任意一台服务器处理，远程 MCP 服务就能像普通网站一样横向扩容。</p>
+					<p>那需要跨调用记住东西怎么办？规范给的答案是<strong>显式的句柄</strong>：创建类的工具返回一个 ID，后续调用把它当普通参数传回来。规范举的例子是购物车：</p>
+					<p class="code-label"><span>server/tools.mdx · Stateful Tools</span><span>节选</span></p>
+					<pre><code><span class="c">// → tools/call</span>
+{ <span class="s">"name"</span>: <span class="s">"create_basket"</span>, <span class="s">"arguments"</span>: {} }
+<span class="c">// ← result</span>
+{ <span class="s">"structuredContent"</span>: { <span class="s">"basket_id"</span>: <span class="s">"bsk_a1b2c3"</span> } }
+<span class="c">// → tools/call</span>
+{ <span class="s">"name"</span>: <span class="s">"add_item"</span>, <span class="s">"arguments"</span>: { <span class="s">"basket_id"</span>: <span class="s">"bsk_a1b2c3"</span>, <span class="s">"sku"</span>: <span class="s">"..."</span> } }</code></pre>
+					<p>规范还提醒了句柄的几条设计原则：每次调用都要重新校验权限（句柄只是名字，不是通行证）；用不透明的随机 ID，别让人能猜出结构；在工具描述里写清楚多久过期，让模型自己判断；过期了要回一个模型看得懂的错误，好让它重新创建。</p>
+
+					<h3>多轮请求（MRTR）：服务器不再「反问」</h3>
+					<p>以前服务器处理请求时如果需要用户补充信息，会反过来给客户端发一个请求，这要求连接一直保持着。现在改成这样：</p>
+					<ol>
+						<li>客户端发请求</li>
+						<li>服务器发现信息不够，回一个 <code>resultType: "input_required"</code>，里面的 <code>inputRequests</code> 写着要问什么，可以附一个只有服务器自己看得懂的 <code>requestState</code></li>
+						<li>客户端去问用户（或者调用自己的模型），然后<strong>用新的请求 id 重发原请求</strong>，带上 <code>inputResponses</code> 和原样奉还的 <code>requestState</code></li>
+						<li>服务器信息够了，返回最终结果</li>
+					</ol>
+					<p>规范要求客户端<strong>不得</strong>解析、修改或猜测 <code>requestState</code> 的内容。状态从服务器内存里搬到了消息里，由客户端「代为保管」。</p>
+
+					<h3>工具：描述、提示、两种错误</h3>
+					<p>一个工具的定义包括名字、描述、输入的 JSON Schema、可选的输出 Schema，以及一组行为提示（annotations）。提示的<strong>默认值</strong>很有讲究：</p>
+					<div class="table-wrap">
+						<table>
+							<thead><tr><th>提示</th><th>含义</th><th>不写时默认</th></tr></thead>
+							<tbody>
+								<tr><td><code>readOnlyHint</code></td><td>不修改环境</td><td>false（当作会修改）</td></tr>
+								<tr><td><code>destructiveHint</code></td><td>可能做破坏性修改</td><td><strong>true</strong>（当作会破坏）</td></tr>
+								<tr><td><code>idempotentHint</code></td><td>重复调用效果相同</td><td>false</td></tr>
+								<tr><td><code>openWorldHint</code></td><td>会接触外部世界</td><td><strong>true</strong></td></tr>
+							</tbody>
+						</table>
+					</div>
+					<p>什么都不声明的工具，会被当成「会改东西、会搞破坏、会联网」的最危险那一类。这和 <a href="rea.html">REA</a> 那篇里「新工具一律先按不可信处理」是同一种思路，REA 的 212 个工具副作用审计，正是为了把这几个提示填准确。</p>
+					<p>但规范同时强调两点：</p>
+					<ul>
+						<li><strong>提示不可信：</strong>除非服务器本身可信，客户端<strong>必须</strong>把这些提示当作不可信信息。服务器完全可以把一个删库工具标成「只读」。</li>
+						<li><strong>人要能说不：</strong>应当始终有一个人能拒绝工具调用；界面上要让用户知道暴露了哪些工具、什么时候被调用了。</li>
+					</ul>
+					<p>错误也分两种，这个区分很为 Agent 着想：</p>
+					<div class="table-wrap">
+						<table>
+							<thead><tr><th>类型</th><th>例子</th><th>怎么返回</th></tr></thead>
+							<tbody>
+								<tr><td>协议错误</td><td>工具不存在、请求格式不对</td><td>JSON-RPC 的 <code>error</code>，模型通常修不了</td></tr>
+								<tr><td>工具执行错误</td><td>参数值不合法、外部接口失败</td><td>正常的 <code>result</code> 加 <code>isError: true</code>，错误内容会给模型看，让它自己调整重试</td></tr>
+							</tbody>
+						</table>
+					</div>
+
+					<h3>为 Agent 和缓存做的小优化</h3>
+					<ul>
+						<li><strong>工具列表顺序要固定。</strong>changelog 写明，服务器<strong>应当</strong>以确定的顺序返回工具，理由之一是提高大模型提示词缓存的命中率。这和 <a href="opencode.html">OpenCode</a> 最后一步保留工具定义是同一个考虑。</li>
+						<li><strong>列表结果可缓存。</strong><code>tools/list</code> 等结果必须带 <code>ttlMs</code>（多久内可以直接用缓存）和 <code>cacheScope</code>（能否被共享的中间层缓存）。</li>
+						<li><strong>做减法。</strong><code>ping</code>、<code>logging/setLevel</code> 被删除；Roots、Sampling、Logging 三项能力被弃用，建议改用工具参数传目录、直接调用模型服务商的接口、日志写 <code>stderr</code> 或用 OpenTelemetry。</li>
+					</ul>
+				</section>
+
+				<section id="reproduce">
+					<h2><span class="step-no">04</span>复现：手写一个迷你 MCP 服务器</h2>
+					<p>MCP 的 stdio 传输规则很简单：客户端把服务器当子进程启动，<strong>每行一条 JSON-RPC 消息</strong>，消息里不能有换行；日志只能写到 <code>stderr</code>，不能污染 <code>stdout</code>。所以只用 Python 标准库就能写一个服务器，约 60 行。它实现了 2026-07-28 版的这些部分：</p>
+					<ul>
+						<li><code>server/discover</code></li>
+						<li><code>tools/list</code>：两个工具，顺序固定，带 <code>ttlMs</code> 和 <code>cacheScope</code></li>
+						<li><code>tools/call</code>：<code>add</code> 做加法；<code>greet</code> 不知道你叫什么时，用 MRTR 反问</li>
+						<li>每个请求都检查 <code>_meta</code> 里的协议版本，不支持就回 <code>-32022</code></li>
+					</ul>
+					<p class="code-label"><span>mini_server.py</span><span>核心片段</span></p>
+					<pre><code><span class="k">if</span> name == <span class="s">"greet"</span>:
+    answer = params.get(<span class="s">"inputResponses"</span>, {}).get(<span class="s">"ask_name"</span>)
+    <span class="k">if not</span> answer:  <span class="c"># 多轮请求：反问客户端，自己什么都不记</span>
+        <span class="k">return</span> {<span class="s">"result"</span>: {<span class="s">"resultType"</span>: <span class="s">"input_required"</span>,
+                           <span class="s">"inputRequests"</span>: {<span class="s">"ask_name"</span>: {<span class="s">"method"</span>: <span class="s">"elicitation/create"</span>, ...}},
+                           <span class="s">"requestState"</span>: <span class="s">"greet-v1"</span>}}
+    <span class="k">return</span> {<span class="s">"result"</span>: ok({<span class="s">"content"</span>: [{<span class="s">"type"</span>: <span class="s">"text"</span>, <span class="s">"text"</span>: f<span class="s">"Oink! Hello, {answer['content']['name']}."</span>}]})}
+
+<span class="k">for</span> line <span class="k">in</span> sys.stdin:                        <span class="c"># 一行一条消息</span>
+    msg = json.loads(line)
+    print(f<span class="s">"[server] {msg['method']}"</span>, file=sys.stderr)   <span class="c"># 日志只写 stderr</span>
+    sys.stdout.write(json.dumps({<span class="s">"jsonrpc"</span>: <span class="s">"2.0"</span>, <span class="s">"id"</span>: msg[<span class="s">"id"</span>], **handle(msg)}) + <span class="s">"\n"</span>)</code></pre>
+					<p>再写一个客户端，启动服务器、依次发 7 个请求，把每条往返记下来。</p>
+					<h3>结果</h3>
+					<div class="table-wrap">
+						<table>
+							<thead><tr><th>#</th><th>客户端发了什么</th><th>服务器回了什么</th></tr></thead>
+							<tbody>
+								<tr><td>1</td><td><code>server/discover</code></td><td>支持的版本 <code>["2026-07-28"]</code>、能力 <code>tools</code>、服务器身份、可缓存 1 小时</td></tr>
+								<tr><td>2</td><td><code>tools/list</code></td><td>两个工具，<code>add</code> 带 <code>readOnlyHint: true</code>；<code>ttlMs: 300000</code></td></tr>
+								<tr><td>3</td><td><code>tools/call add {a:2, b:40}</code></td><td><code>content</code> 里的文字「42」，加上结构化的 <code>{"sum": 42}</code></td></tr>
+								<tr><td>4</td><td><code>tools/call greet</code></td><td><code>resultType: "input_required"</code>，问「What should I call you?」</td></tr>
+								<tr><td>5</td><td>用<strong>新 id</strong> 重发 greet，带上 <code>inputResponses</code> 和 <code>requestState</code></td><td>「Oink! Hello, Zhuzhu.」</td></tr>
+								<tr><td>6</td><td><code>tools/call fly</code></td><td>协议错误 <code>-32602 Unknown tool: fly</code></td></tr>
+								<tr><td>7</td><td><code>tools/list</code>，但声称版本是 <code>2025-11-25</code></td><td><code>-32022</code>，<code>data</code> 里列出支持的版本，让客户端换一个重试</td></tr>
+							</tbody>
+						</table>
+					</div>
+					<p>第 4、5 步就是一次完整的多轮请求，服务器在两次请求之间<strong>没有保存任何东西</strong>，需要的上下文全在第二次请求里。服务器的 <code>stderr</code> 里只有一行行日志，<code>stdout</code> 始终是干净的 JSON。</p>
+					<div class="callout">
+						<b>发现</b>
+						<p>无状态的代价是每个请求都要自报家门。我量了一下：一个最简单的 <code>tools/call</code>，不带 <code>_meta</code> 是 110 字节，带上版本、客户端身份和能力之后是 335 字节，<strong>每个请求多出约 225 字节</strong>。这些字节只在客户端和服务器之间传，不会发给大模型，不消耗 token。用这点流量换来「任意实例都能处理任意请求」，对远程服务来说相当划算。</p>
+					</div>
+				</section>
+
+				<section id="verdict">
+					<h2><span class="step-no">05</span>结论</h2>
+					<div class="verdict">
+						<span class="chip">ONE-LINER</span>
+						<p>MCP 用最朴素的 JSON-RPC 把 Agent 和工具连起来；2026-07-28 版又往「朴素」走了一大步：去掉握手和会话，每个请求自带版本和能力，反问改成「回结果、等重试」，让 MCP 服务器能像普通网站一样无状态地扩容。</p>
+					</div>
+					<div class="two-col">
+						<div>
+							<h4>适合谁</h4>
+							<ul>
+								<li>想给自家系统做一个能被各种 Agent 调用的工具服务的人</li>
+								<li>在做 Agent、想一次接入大量现成工具的人</li>
+								<li>想理解前几篇里 MCP 相关设计从哪来的人</li>
+							</ul>
+						</div>
+						<div>
+							<h4>需要注意</h4>
+							<ul>
+								<li>新版有多处不兼容改动，旧客户端和新服务器混用时要靠 <code>server/discover</code> 和版本错误来协商</li>
+								<li>工具提示（annotations）只是服务器的自我声明，不能代替客户端自己的权限和审批</li>
+								<li>本文的玩具实现只覆盖一小部分规范，真要写服务器请用官方 SDK</li>
+							</ul>
+						</div>
+					</div>
+					<h3>猪猪的三条收获</h3>
+					<ol>
+						<li><strong>状态放进消息里，服务就好扩容。</strong>购物车 ID、<code>requestState</code> 都是这个思路，自己写后端接口时同样适用。</li>
+						<li><strong>危险的默认值比乐观的默认值安全。</strong>不写提示就当最危险的处理，逼着服务器作者主动声明。</li>
+						<li><strong>区分「模型能修的错」和「模型修不了的错」。</strong>工具执行错误交给模型自我纠正，协议错误交给程序处理，这个分法值得在所有给 AI 用的接口里照搬。</li>
+					</ol>
+					<h3>参考资料</h3>
+					<ul class="refs">
+						<li><a href="https://github.com/modelcontextprotocol/modelcontextprotocol" target="_blank" rel="noopener">modelcontextprotocol/modelcontextprotocol</a>：docs/specification/2026-07-28/（changelog、basic、server/tools、server/discover、basic/patterns/mrtr、basic/transports/stdio）、schema/2026-07-28/schema.ts</li>
+						<li><a href="https://modelcontextprotocol.io/specification/2026-07-28" target="_blank" rel="noopener">MCP 规范 2026-07-28（在线版）</a></li>
+						<li>研究所系列：<a href="claude-code.html">Claude Code</a>、<a href="opencode.html">OpenCode</a>、<a href="rea.html">REA</a>、<a href="codex.html">Codex CLI</a></li>
+					</ul>
+				</section>
+			</article>
+		</div>
+	</main>
+
+	<footer class="footer">
+		<div class="wrap footer-in">
+			<div class="footer-brand">
+				<img src="../assets/logo.webp" alt="" width="28" height="28">
+				<span>© 2026 czspig · 猪猪 Repo 研究所</span>
+			</div>
+			<nav class="footer-links" aria-label="页脚链接">
+				<a href="https://czspig.github.io/" target="_blank" rel="noopener">czspig 的博客</a>
+				<a href="https://github.com/czspig/czspig-repo-lab" target="_blank" rel="noopener">GitHub</a>
+			</nav>
+		</div>
+	</footer>
+
+	<script src="../assets/report.js"></script>
+</body>
+</html>
