@@ -95,6 +95,17 @@ const REPORTS = [
 		stack: ["TypeScript", "Python"],
 		date: "2026-10-28",
 	},
+	{
+		slug: "learn-claude-code",
+		repo: "shareAI-lab/learn-claude-code",
+		title: "Learn Claude Code 解析",
+		file: "reports/learn-claude-code.html",
+		summary:
+			"用 17 章从零搭一个 Agent 外壳：从 20 行的 while 循环出发，看权限钩子、四层上下文压缩、任务图、Agent 团队和 MCP 如何一层层挂上同一个循环，附四张重画的架构图。",
+		tags: ["Claude Code", "教程", "AI Agent"],
+		stack: ["Python"],
+		date: "2026-11-09",
+	},
 ];
 
 /* 实验日志：新的在后面 */
@@ -143,6 +154,11 @@ const LOG = [
 		date: "2026-10-28",
 		title: "第八份报告：MCP 解析",
 		body: "回到整个系列的公共底座：读了 MCP 规范最新版的无状态改版，并用约 60 行 Python 手写了一个支持 server/discover 和多轮请求的迷你服务器，量出无状态每个请求多付约 225 字节。",
+	},
+	{
+		date: "2026-11-09",
+		title: "第九份报告：Learn Claude Code 解析",
+		body: "换个角度回到 Claude Code：读一个把它从零重搭的 17 章开源教程，这次不做实验，专心把课程分层、集成架构、四层压缩和团队协作画成四张图。",
 	},
 ];
 

@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Learn Claude Code 解析 · 猪猪 Repo 研究所</title>
+	<meta name="description" content="shareAI-lab/learn-claude-code 解析：17 章从零搭建 Claude Code 式 Agent Harness，附课程分层图、集成架构图、四层上下文压缩图和 Agent 团队结构图。">
+	<meta name="theme-color" content="#faf9f5">
+	<meta property="og:title" content="Learn Claude Code 解析 · 猪猪 Repo 研究所">
+	<meta property="og:description" content="用 17 章从零搭一个 Agent 外壳：learn-claude-code 的课程地图与架构图。">
+	<meta property="og:image" content="https://czspig.github.io/czspig-repo-lab/assets/cover.webp">
+	<meta property="og:url" content="https://czspig.github.io/czspig-repo-lab/reports/learn-claude-code.html">
+	<link rel="icon" type="image/png" href="../assets/favicon.png">
+	<script>
+		try {
+			var t = localStorage.getItem("repo-lab-theme");
+			if (t) document.documentElement.setAttribute("data-theme", t);
+		} catch (e) {}
+	</script>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400..700;1,8..60,400..600&display=swap">
+	<link rel="stylesheet" href="../assets/styles.css">
+	<link rel="stylesheet" href="../assets/report.css">
+</head>
+<body>
+	<header class="nav">
+		<div class="wrap nav-in">
+			<a class="brand" href="../" aria-label="猪猪 Repo 研究所 首页">
+				<img src="../assets/logo.webp" alt="" width="34" height="34">
+				<span>
+					<span class="brand-name">猪猪 Repo 研究所</span>
+					<span class="brand-sub">czspig-repo-lab</span>
+				</span>
+			</a>
+			<nav class="nav-links" aria-label="主导航">
+				<a href="../#ledger">研究台账</a>
+				<a href="../#method">研究方法</a>
+				<a href="../#log">实验日志</a>
+			</nav>
+			<div class="nav-actions">
+				<a class="icon-btn" href="https://github.com/czspig/czspig-repo-lab" target="_blank" rel="noopener" aria-label="GitHub 仓库">
+					<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3"/></svg>
+				</a>
+				<button class="icon-btn" id="themeBtn" type="button" aria-label="切换明暗主题">
+					<svg class="theme-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+					<svg class="theme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M4.9 4.9l1.4 1.4"/><path d="M17.7 17.7l1.4 1.4"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M4.9 19.1l1.4-1.4"/><path d="M17.7 6.3l1.4-1.4"/></svg>
+				</button>
+			</div>
+		</div>
+	</header>
+
+	<main class="wrap">
+		<header class="report-hero">
+			<a class="crumb" href="../#ledger">← 返回研究台账</a>
+			<p class="eyebrow">Report No.009 · 教程</p>
+			<h1>Learn Claude Code：<br>用 17 章从零搭一个 Agent 外壳</h1>
+			<p class="lede">研究所第一篇拆的是 Claude Code 本体。这一篇换个角度，看一个把它「拆开重搭」的开源教程：shareAI-lab 的 learn-claude-code。它从一个 20 行的 while 循环出发，每章加一个机制，最后拼成一个 3000 多行、带权限、压缩、任务、团队和 MCP 的完整 Agent 外壳。本篇不跑代码，只做两件事：讲清楚它在教什么，把架构画出来。</p>
+			<dl class="meta">
+				<div><dt>研究对象</dt><dd><a href="https://github.com/shareAI-lab/learn-claude-code" target="_blank" rel="noopener">shareAI-lab/learn-claude-code</a></dd></div>
+				<div><dt>研究版本</dt><dd>@ 7226f55（2026-10-27）<br>新版 17 章主线</dd></div>
+				<div><dt>许可</dt><dd>MIT</dd></div>
+				<div><dt>发布日期</dt><dd>2026-11-09</dd></div>
+			</dl>
+		</header>
+
+		<div class="doc">
+			<aside class="toc" aria-label="本文目录">
+				<p>目录</p>
+				<ol>
+					<li><a href="#sample">01 它是什么</a></li>
+					<li><a href="#map">02 课程地图</a></li>
+					<li><a href="#arch">03 总架构</a></li>
+					<li><a href="#parts">04 两个重点子系统</a></li>
+					<li><a href="#verdict">05 结论</a></li>
+				</ol>
+			</aside>
+
+			<article class="prose">
+				<div class="callout is-note">
+					<b>本篇范围</b>
+					<p>只读了仓库的中文 README、各章 <code>code.py</code> 的结构，以及第 15 章集成版的主循环、钩子、压缩和工具池代码。没有运行任何一章，也没有调用模型。图都是我根据源码重新画的，不是仓库自带的图。</p>
+				</div>
+
+				<section id="sample">
+					<h2><span class="step-no">01</span>它是什么</h2>
+					<p>README 开头先亮观点：<strong>Agent 的能力来自模型训练，不来自外面那层代码</strong>。模型是驾驶者，外面那层叫 <strong>Harness</strong>（外壳、载具），负责给模型工具、上下文、权限和运行环境。作者认为把大模型调用用 if-else 和节点图串起来不算「做 Agent」，真正该做的工程是 Harness，而 Claude Code 是这方面最好的范本。这个仓库就是一步步教你造这层外壳。</p>
+					<div class="table-wrap">
+						<table>
+							<thead><tr><th>样本卡</th><th></th></tr></thead>
+							<tbody>
+								<tr><td>形式</td><td>17 章，每章一个目录：中英日三语 README、一个能单独运行的 <code>code.py</code>、配图</td></tr>
+								<tr><td>代码量</td><td>第 1 章 153 行，第 15 章集成版 3330 行，17 章合计约 1.3 万行 Python</td></tr>
+								<tr><td>依赖</td><td>只有 <code>anthropic</code>、<code>python-dotenv</code>、<code>pyyaml</code> 三个包</td></tr>
+								<tr><td>模型</td><td>Anthropic 官方接口，也可以换成兼容这套接口的 MiniMax、GLM、Kimi、DeepSeek</td></tr>
+								<tr><td>其他</td><td>附带一个 Next.js 网页版课程（有循环模拟器和每章的动画），以及保留旧版 12 章的 <code>agents/</code> 目录</td></tr>
+							</tbody>
+						</table>
+					</div>
+					<p>它和研究所第一篇 <a href="claude-code.html">Claude Code 解析</a>的关系是：那篇是从外面观察真实产品，这篇是看别人怎么用最少的代码把同样的机制重新实现一遍。两篇对照着读，能分清哪些是 Agent 必需的骨架，哪些是产品级的打磨。</p>
+				</section>
+
+				<section id="map">
+					<h2><span class="step-no">02</span>课程地图：一个循环，十六个机制</h2>
+					<p>所有章节都围绕同一个循环。README 里的原话是「循环属于 agent，机制属于 harness」。按机制解决的问题，我把 17 章分成了 7 层：</p>
+					<figure class="figure">
+						<div class="scroll">
+							<svg viewBox="0 0 880 420" role="img" aria-labelledby="lccfig1">
+								<title id="lccfig1">learn-claude-code 17 章按功能分层：核心循环 s01 s02；安全与扩展 s03 s04；规划与上下文 s05 到 s09；任务与时间 s10 到 s12；协作与外部 s13 s14；集成 s15；进阶 s16 s17</title>
+								<g font-family="Inter, PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="currentColor">
+									<g fill="var(--bg-2)" stroke="var(--rule)" stroke-width="1.2">
+										<rect x="20" y="14" width="150" height="46" rx="9"/><rect x="20" y="70" width="150" height="46" rx="9"/><rect x="20" y="126" width="150" height="46" rx="9"/><rect x="20" y="182" width="150" height="46" rx="9"/><rect x="20" y="238" width="150" height="46" rx="9"/>
+									</g>
+									<rect x="20" y="294" width="150" height="46" rx="9" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.4"/>
+									<rect x="20" y="350" width="150" height="46" rx="9" fill="var(--bg-2)" stroke="var(--rule)" stroke-width="1.2"/>
+									<g font-weight="600" text-anchor="middle">
+										<text x="95" y="42">核心循环</text><text x="95" y="98">安全与扩展</text><text x="95" y="154">规划与上下文</text><text x="95" y="210">任务与时间</text><text x="95" y="266">协作与外部</text><text x="95" y="322">集成</text><text x="95" y="378">进阶</text>
+									</g>
+									<g fill="var(--surface)" stroke="var(--rule)" stroke-width="1.2">
+										<rect x="186" y="14" width="200" height="46" rx="9"/><rect x="396" y="14" width="200" height="46" rx="9"/>
+										<rect x="186" y="70" width="200" height="46" rx="9"/><rect x="396" y="70" width="200" height="46" rx="9"/>
+										<rect x="186" y="126" width="128" height="46" rx="9"/><rect x="322" y="126" width="128" height="46" rx="9"/><rect x="458" y="126" width="128" height="46" rx="9"/><rect x="594" y="126" width="128" height="46" rx="9"/><rect x="730" y="126" width="130" height="46" rx="9"/>
+										<rect x="186" y="182" width="200" height="46" rx="9"/><rect x="396" y="182" width="200" height="46" rx="9"/><rect x="606" y="182" width="200" height="46" rx="9"/>
+										<rect x="186" y="238" width="200" height="46" rx="9"/><rect x="396" y="238" width="200" height="46" rx="9"/>
+										<rect x="186" y="350" width="200" height="46" rx="9"/><rect x="396" y="350" width="200" height="46" rx="9"/>
+									</g>
+									<rect x="186" y="294" width="674" height="46" rx="9" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.4"/>
+									<g font-size="12.5">
+										<text x="200" y="42"><tspan font-weight="600">s01</tspan> 循环 while True</text>
+										<text x="410" y="42"><tspan font-weight="600">s02</tspan> 工具分发表</text>
+										<text x="200" y="98"><tspan font-weight="600">s03</tspan> 权限审批</text>
+										<text x="410" y="98"><tspan font-weight="600">s04</tspan> 钩子 Hooks</text>
+										<text x="198" y="154"><tspan font-weight="600">s05</tspan> 待办清单</text>
+										<text x="334" y="154"><tspan font-weight="600">s06</tspan> 子 agent</text>
+										<text x="470" y="154"><tspan font-weight="600">s07</tspan> 技能加载</text>
+										<text x="606" y="154"><tspan font-weight="600">s08</tspan> 上下文压缩</text>
+										<text x="742" y="154"><tspan font-weight="600">s09</tspan> 长期记忆</text>
+										<text x="200" y="210"><tspan font-weight="600">s10</tspan> 任务图（依赖）</text>
+										<text x="410" y="210"><tspan font-weight="600">s11</tspan> 后台任务</text>
+										<text x="620" y="210"><tspan font-weight="600">s12</tspan> 定时调度 Cron</text>
+										<text x="200" y="266"><tspan font-weight="600">s13</tspan> Agent 团队</text>
+										<text x="410" y="266"><tspan font-weight="600">s14</tspan> MCP 插件</text>
+										<text x="200" y="322"><tspan font-weight="600">s15</tspan> 集成 Harness：把 s01–s14 接回同一个循环（3330 行）</text>
+										<text x="200" y="378"><tspan font-weight="600">s16</tspan> 工作流运行时</text>
+										<text x="410" y="378"><tspan font-weight="600">s17</tspan> 目标循环 /goal</text>
+									</g>
+									<g font-size="12" fill="var(--ink-2)">
+										<text x="612" y="36">一切从这 20 行开始</text>
+										<text x="612" y="92">在工具执行前后插手</text>
+										<text x="612" y="248">多个 agent 一起干活，</text>
+										<text x="612" y="266">以及接入外部工具</text>
+										<text x="612" y="372">建立在 s15 之上，</text>
+										<text x="612" y="390">分别讲编排和收尾</text>
+									</g>
+								</g>
+							</svg>
+						</div>
+						<figcaption>图 1　17 章按功能分层（分组是我按 README「全部章节」表整理的，仓库本身没有这样分）。</figcaption>
+					</figure>
+					<p>每一章的 <code>code.py</code> 都是在前一章基础上复制再加东西，所以任何一章都能单独运行。第 15 章是分水岭：前 14 章各讲一个机制，第 15 章把它们全接回一个循环；第 16、17 章不再往上堆，而是另起炉灶讲「怎么编排一大串工作」和「怎么判断真的做完了」。</p>
+				</section>
+
+				<section id="arch">
+					<h2><span class="step-no">03</span>总架构：第 15 章的集成版</h2>
+					<h3>起点：20 行的核心循环</h3>
+					<p>第 1 章的全部秘密就是下面这个循环：调用模型，模型想用工具就执行，把结果塞回对话再调用一次，直到模型不再调用工具为止。</p>
+					<p class="code-label"><span>s01_agent_loop/code.py</span><span>节选</span></p>
+					<pre><code><span class="k">def</span> agent_loop(messages):
+    <span class="k">while</span> True:
+        response = client.messages.create(model=MODEL, system=SYSTEM,
+                                          messages=messages, tools=TOOLS)
+        messages.append({<span class="s">"role"</span>: <span class="s">"assistant"</span>, <span class="s">"content"</span>: response.content})
+        tool_calls = [b <span class="k">for</span> b <span class="k">in</span> response.content <span class="k">if</span> b.type == <span class="s">"tool_use"</span>]
+        <span class="k">if not</span> tool_calls:          <span class="c"># 模型不再用工具 = 这轮结束</span>
+            <span class="k">return</span>
+        results = [{<span class="s">"type"</span>: <span class="s">"tool_result"</span>, <span class="s">"tool_use_id"</span>: b.id,
+                    <span class="s">"content"</span>: run_bash(b.input[<span class="s">"command"</span>])} <span class="k">for</span> b <span class="k">in</span> tool_calls]
+        messages.append({<span class="s">"role"</span>: <span class="s">"user"</span>, <span class="s">"content"</span>: results})</code></pre>
+					<p>第 1 章只有一个 <code>bash</code> 工具，安全措施是一个五项的危险命令子串名单。后面 14 章做的事，都是在这个循环的前后和内部「挂东西」，循环本身的形状从头到尾没变。</p>
+
+					<h3>终点：同一个循环，挂满了机制</h3>
+					<figure class="figure">
+						<div class="scroll">
+							<svg viewBox="0 0 880 560" role="img" aria-labelledby="lccfig2">
+								<title id="lccfig2">s15 集成 Harness 架构：三个入口（用户输入、cron 调度线程、后台事件循环）进入 agent_loop；每轮四步：注入事件、准备上下文、调用模型、执行工具，工具结果回填后进入下一轮；下方是工具背后的运行时与磁盘状态</title>
+								<defs><marker id="la" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="currentColor"/></marker></defs>
+								<g font-family="Inter, PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="currentColor" text-anchor="middle">
+									<g fill="var(--bg-2)" stroke="var(--rule)" stroke-width="1.3">
+										<rect x="40" y="16" width="250" height="56" rx="10"/><rect x="315" y="16" width="250" height="56" rx="10"/><rect x="590" y="16" width="250" height="56" rx="10"/>
+									</g>
+									<text x="165" y="39" font-weight="600">用户输入</text><text x="165" y="59" font-size="12" fill="var(--ink-2)">主线程 REPL</text>
+									<text x="440" y="39" font-weight="600">Cron 调度线程</text><text x="440" y="59" font-size="12" fill="var(--ink-2)">到点的定时任务进入队列</text>
+									<text x="715" y="39" font-weight="600">后台事件循环</text><text x="715" y="59" font-size="12" fill="var(--ink-2)">每秒检查队友消息和后台结果</text>
+									<g stroke="currentColor" stroke-width="1.3" opacity="0.6" marker-end="url(#la)"><path d="M165 72v42"/><path d="M440 72v42"/><path d="M715 72v42"/></g>
+
+									<rect x="20" y="118" width="840" height="252" rx="14" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+									<text x="440" y="142" font-weight="600">agent_loop：每一轮都走同样的四步（同一时间只有一个入口能进，靠一把锁排队）</text>
+									<g fill="var(--surface)" stroke="var(--rule)" stroke-width="1.3">
+										<rect x="40" y="158" width="185" height="150" rx="10"/><rect x="245" y="158" width="185" height="150" rx="10"/><rect x="450" y="158" width="185" height="150" rx="10"/><rect x="655" y="158" width="185" height="150" rx="10"/>
+									</g>
+									<g font-weight="600"><text x="132" y="184">① 注入事件</text><text x="337" y="184">② 准备上下文</text><text x="542" y="184">③ 调用模型</text><text x="747" y="184">④ 执行工具</text></g>
+									<g font-size="12">
+										<text x="132" y="210">到点的定时任务</text><text x="132" y="230">后台任务完成通知</text><text x="132" y="250">3 轮没更新待办</text><text x="132" y="270">就插一句提醒</text>
+										<text x="337" y="210">四层压缩（见图 3）</text><text x="337" y="230">按当前状态重建</text><text x="337" y="250">系统提示词</text><text x="337" y="270">合并内置 + MCP 工具</text>
+										<text x="542" y="210">429：指数退避重试</text><text x="542" y="230">连续 529：换备用模型</text><text x="542" y="250">输出截断：8k→16k</text><text x="542" y="270">太长报错：被动压缩</text>
+										<text x="747" y="210">PreToolUse 钩子</text><text x="747" y="230">（权限审批在这里）</text><text x="747" y="250">耗时命令转后台</text><text x="747" y="270">执行 → PostToolUse</text>
+									</g>
+									<text x="542" y="294" font-size="12" fill="var(--accent)">没调用工具 → 结束本轮</text>
+									<g stroke="currentColor" stroke-width="1.3" opacity="0.6" marker-end="url(#la)"><path d="M225 233h18"/><path d="M430 233h18"/><path d="M635 233h18"/></g>
+									<path d="M747 308v26H132v-24" fill="none" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#la)" color="var(--accent)"/>
+									<text x="440" y="354" font-size="12" fill="var(--ink-2)">工具结果作为一条用户消息塞回对话，进入下一轮</text>
+
+									<g stroke="currentColor" stroke-width="1.3" opacity="0.6" marker-end="url(#la)"><path d="M440 370v28"/></g>
+									<text x="440" y="416" font-size="12" fill="var(--ink-2)">工具背后的运行时和磁盘状态</text>
+									<g fill="var(--bg-2)" stroke="var(--rule)" stroke-width="1.2">
+										<rect x="20" y="428" width="203" height="54" rx="9"/><rect x="232" y="428" width="203" height="54" rx="9"/><rect x="445" y="428" width="203" height="54" rx="9"/><rect x="657" y="428" width="203" height="54" rx="9"/>
+										<rect x="20" y="492" width="203" height="54" rx="9"/><rect x="232" y="492" width="203" height="54" rx="9"/><rect x="445" y="492" width="203" height="54" rx="9"/><rect x="657" y="492" width="203" height="54" rx="9"/>
+									</g>
+									<g font-weight="600" font-size="12.5">
+										<text x="121" y="450">基础工具</text><text x="333" y="450">子 agent</text><text x="546" y="450">任务图 .tasks/</text><text x="758" y="450">队友线程</text>
+										<text x="121" y="514">MCP 客户端</text><text x="333" y="514">技能与记忆</text><text x="546" y="514">定时任务</text><text x="758" y="514">压缩存档</text>
+									</g>
+									<g font-size="11.5" fill="var(--ink-2)">
+										<text x="121" y="470">bash · 读 · 写 · 改 · glob</text><text x="333" y="470">全新对话，只带回结论</text><text x="546" y="470">依赖、认领、绑定 worktree</text><text x="758" y="470">邮箱 MessageBus + 协议</text>
+										<text x="121" y="534">mcp__服务名__工具名</text><text x="333" y="534">skills/ 目录 · .memory/</text><text x="546" y="534">cron 表达式，可持久化</text><text x="758" y="534">.transcripts/ · 大结果落盘</text>
+									</g>
+								</g>
+							</svg>
+						</div>
+						<figcaption>图 2　第 15 章 <code>s15_integrated_harness/code.py</code> 的整体架构（根据 <code>agent_loop</code>、<code>async_event_loop</code> 和 <code>__main__</code> 整理）。</figcaption>
+					</figure>
+					<p>几个读源码时注意到的设计：</p>
+					<ul>
+						<li><strong>三个入口，一把锁。</strong>除了用户打字，定时任务到点、队友发来消息、后台命令跑完，也会唤醒 Agent 开一轮。它们共用一个 <code>agent_lock</code>，所以同一时间只有一轮在跑，对话历史不会被两个线程同时改。</li>
+						<li><strong>系统提示词每轮重建。</strong><code>assemble_system_prompt</code> 每次调用模型前都重新拼一遍：身份、工具说明、任务和团队规则、工作目录、当前时间、技能目录、相关记忆、已连接的 MCP 服务器。状态变了，模型下一轮就能看到。</li>
+						<li><strong>工具池每轮重新组装。</strong>内置工具加上所有已连接 MCP 服务器的工具，MCP 工具统一改名为 <code>mcp__服务名__工具名</code>，名字超过 64 个字符或者撞名就直接报错。</li>
+						<li><strong>权限是一个钩子。</strong>钩子分四种：<code>UserPromptSubmit</code>、<code>PreToolUse</code>、<code>PostToolUse</code>、<code>Stop</code>。权限检查就注册在 <code>PreToolUse</code> 上：shell 命令先过拒绝名单，再问用户 y/N；文件路径不能跑出工作目录；MCP 工具默认要确认。钩子返回任何内容都会代替工具结果交给模型，这和 <a href="claude-code.html">Claude Code 那篇</a>里实测的钩子行为是同一个模型。</li>
+						<li><strong>后台线程不能弹确认框。</strong>如果这一轮是被定时任务或队友消息唤醒的、不在主线程，需要确认的 shell 命令和 MCP 工具会被直接拒绝，而不是卡在一个没人看的提示上。</li>
+					</ul>
+				</section>
+
+				<section id="parts">
+					<h2><span class="step-no">04</span>两个重点子系统</h2>
+					<h3>上下文压缩：能不花钱就不花钱</h3>
+					<p>对话越长越贵，迟早超出模型上限。第 8 章讲的压缩在第 15 章变成了每轮必经的 <code>prepare_context</code>，按「从便宜到贵」的顺序一层层试：</p>
+					<figure class="figure">
+						<div class="scroll">
+							<svg viewBox="0 0 880 330" role="img" aria-labelledby="lccfig3">
+								<title id="lccfig3">四层压缩：第一层本轮工具结果合计超过 20 万字符时把最大的结果存到磁盘只留预览；第二层消息达到 50 条时保留开头和最近部分，中间存档；第三层总量超过 5 万字符时把模型已读过的旧结果换成文件路径，不够再把大结果缩成预览；第四层仍超限时调用模型写摘要。前三层不调用模型</title>
+								<defs><marker id="lb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="currentColor"/></marker></defs>
+								<g font-family="Inter, PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="currentColor">
+									<g fill="var(--surface)" stroke="var(--rule)" stroke-width="1.3">
+										<rect x="20" y="14" width="840" height="58" rx="10"/><rect x="20" y="88" width="840" height="58" rx="10"/><rect x="20" y="162" width="840" height="76" rx="10"/>
+									</g>
+									<rect x="20" y="254" width="840" height="58" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+									<g font-weight="600">
+										<text x="40" y="38">① 单轮预算</text><text x="40" y="112">② 剪中间</text><text x="40" y="186">③ 换成路径</text><text x="40" y="278">④ 写摘要</text>
+									</g>
+									<g font-size="12" fill="var(--ink-2)">
+										<text x="40" y="58">tool_result_budget</text><text x="40" y="132">snip_compact</text><text x="40" y="206">micro_compact</text><text x="40" y="224">fit_tool_results</text><text x="40" y="298">compact_history</text>
+									</g>
+									<g font-size="12.5">
+										<text x="200" y="38">触发：这一轮的工具结果加起来超过 20 万字符</text>
+										<text x="200" y="58">做法：从最大的开始，存到磁盘，只留前 2000 字预览和文件路径</text>
+										<text x="200" y="112">触发：对话达到 50 条消息</text>
+										<text x="200" y="132">做法：留开头 3 条和最近的，中间整段存进 .transcripts/，换成一行「已存档」</text>
+										<text x="200" y="186">触发：整段对话超过 5 万字符（目标压到 4 万）</text>
+										<text x="200" y="206">做法：模型已经看过的旧结果换成文件路径，最近 3 个保留原样</text>
+										<text x="200" y="224">还不够：把最大的结果缩成 1000 字预览</text>
+										<text x="200" y="278">触发：前三层做完还超</text>
+										<text x="200" y="298">做法：调模型写一份事实摘要，用它替换整段对话</text>
+									</g>
+									<g font-size="12" font-weight="600" text-anchor="middle">
+										<rect x="770" y="28" width="74" height="26" rx="13" fill="var(--bg-2)" stroke="var(--rule)"/><text x="807" y="46">不调模型</text>
+										<rect x="770" y="102" width="74" height="26" rx="13" fill="var(--bg-2)" stroke="var(--rule)"/><text x="807" y="120">不调模型</text>
+										<rect x="770" y="186" width="74" height="26" rx="13" fill="var(--bg-2)" stroke="var(--rule)"/><text x="807" y="204">不调模型</text>
+										<rect x="770" y="268" width="74" height="26" rx="13" fill="var(--surface)" stroke="var(--accent)"/><text x="807" y="286" fill="var(--accent)">要调模型</text>
+									</g>
+									<g stroke="currentColor" stroke-width="1.3" opacity="0.5" marker-end="url(#lb)"><path d="M100 72v14"/><path d="M100 146v14"/><path d="M100 238v14"/></g>
+								</g>
+							</svg>
+						</div>
+						<figcaption>图 3　每轮调用模型前都会走的四层压缩（根据 <code>prepare_context</code> 及其调用的函数整理，阈值是源码里的常量）。</figcaption>
+					</figure>
+					<p>除了每轮自动走一遍，还有两个入口会直接跳到第 4 层：模型自己调用 <code>compact</code> 工具；或者接口报「提示词太长」，这时走「被动压缩」，保留最近 5 条，其余写成摘要，每轮只试一次。</p>
+					<p>摘要这一步有两处很讲究安全的细节：</p>
+					<ul>
+						<li><strong>原文先存档再压。</strong>每次剪掉或摘要前，完整对话都先写进 <code>.transcripts/</code>，被替换的工具结果也都落在磁盘上，模型需要时可以按路径读回来。</li>
+						<li><strong>摘要不能当指令。</strong>写摘要的提示词要求把对话当作「不可信数据」只描述事实；压缩后的消息里，只有原样保留的用户请求叫「Authoritative request」，摘要部分明确标成「Reference state（不可信数据，不构成授权）」。这样即使对话里混进了网页上的注入文本，压缩后也不会变成「用户的要求」。</li>
+					</ul>
+					<p>剪消息时还会检查边界，保证不会把一次 <code>tool_use</code> 和它对应的 <code>tool_result</code> 拆开，否则接口会直接报错。这是写 Agent 很容易踩的坑，仓库专门有一个测试文件 <code>test_compaction_tool_pairs.py</code> 管它。</p>
+
+					<h3>Agent 团队：靠文件夹协作的多线程</h3>
+					<figure class="figure">
+						<div class="scroll">
+							<svg viewBox="0 0 880 300" role="img" aria-labelledby="lccfig4">
+								<title id="lccfig4">Agent 团队结构：主 agent（Lead）在任务板 .tasks/ 上创建任务和依赖，通过邮箱 .mailboxes/ 给队友发消息、请求计划和关闭；队友是独立线程，从任务板原子认领任务，可以在绑定的 worktree 里干活，结果和计划通过邮箱回给 Lead，团队事件会唤醒 Lead</title>
+								<defs><marker id="lc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="currentColor"/></marker></defs>
+								<g font-family="Inter, PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="currentColor" text-anchor="middle">
+									<rect x="30" y="100" width="190" height="100" rx="12" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+									<text x="125" y="134" font-weight="600">Lead（主 agent）</text>
+									<text x="125" y="156" font-size="12" fill="var(--ink-2)">拆任务、定依赖</text>
+									<text x="125" y="174" font-size="12" fill="var(--ink-2)">派人、审计划、收尾</text>
+									<g fill="var(--bg-2)" stroke="var(--rule)" stroke-width="1.3">
+										<rect x="340" y="30" width="210" height="70" rx="10"/><rect x="340" y="200" width="210" height="70" rx="10"/>
+									</g>
+									<text x="445" y="58" font-weight="600">邮箱 .mailboxes/</text><text x="445" y="80" font-size="12" fill="var(--ink-2)">消息、结果、协议请求和回复</text>
+									<text x="445" y="228" font-weight="600">任务板 .tasks/</text><text x="445" y="250" font-size="12" fill="var(--ink-2)">每个任务一个文件，带 blockedBy</text>
+									<g fill="var(--surface)" stroke="var(--rule)" stroke-width="1.3">
+										<rect x="670" y="20" width="180" height="70" rx="10"/><rect x="670" y="115" width="180" height="70" rx="10"/><rect x="670" y="210" width="180" height="70" rx="10"/>
+									</g>
+									<text x="760" y="48" font-weight="600">队友 A（线程）</text><text x="760" y="70" font-size="12" fill="var(--ink-2)">工作中 ↔ 空闲</text>
+									<text x="760" y="143" font-weight="600">队友 B（线程）</text><text x="760" y="165" font-size="12" fill="var(--ink-2)">可绑定独立 worktree</text>
+									<text x="760" y="238" font-weight="600">队友 C（线程）</text><text x="760" y="260" font-size="12" fill="var(--ink-2)">做完一个才能认领下一个</text>
+									<g stroke="currentColor" stroke-width="1.3" opacity="0.6" fill="none" marker-end="url(#lc)">
+										<path d="M220 125 336 72"/><path d="M220 178 336 230"/>
+										<path d="M550 58 666 52"/><path d="M550 72 666 145"/>
+										<path d="M666 248 554 240"/><path d="M666 160 554 222"/>
+									</g>
+									<path d="M340 90 224 140" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#lc)" color="var(--accent)"/>
+									<g font-size="11.5" fill="var(--ink-2)">
+										<text x="262" y="88">发消息 · 要计划 · 关停</text>
+										<text x="262" y="222">建任务 · 加依赖</text>
+										<text x="608" y="42">派发</text>
+										<text x="610" y="276">原子认领 · 完成</text>
+									</g>
+									<text x="300" y="136" font-size="11.5" fill="var(--accent)">事件唤醒</text>
+								</g>
+							</svg>
+						</div>
+						<figcaption>图 4　第 13 章引入、第 15 章集成的团队结构（根据 s13 文档串和 s15 的 MessageBus、任务、worktree 相关函数整理）。</figcaption>
+					</figure>
+					<ul>
+						<li><strong>队友是同一进程里的线程。</strong>每个队友有自己的对话历史和工具集，状态在「工作中」和「空闲」之间切换；空闲时看邮箱、扫任务板找没人认领的活。</li>
+						<li><strong>协作全靠文件夹。</strong>任务是 <code>.tasks/</code> 下的文件，消息是 <code>.mailboxes/</code> 下的文件，认领任务时加文件锁，保证两个队友抢不到同一个任务。</li>
+						<li><strong>有固定的「协议」。</strong>Lead 可以要求队友先交计划（<code>request_plan</code>）、批准或驳回（<code>review_plan</code>）、请队友下线（<code>request_shutdown</code>），每个请求带 ID，回复按 ID 配对。</li>
+						<li><strong>规矩写在提示词里。</strong>比如「派队友前先向用户提议团队方案，等用户确认」「派完就结束这一轮，不要轮询，运行时会把团队事件送回来」「只有 Lead 能改任务依赖」。</li>
+						<li><strong>worktree 不是沙箱。</strong>提示词原话：worktree 只改变工具的默认工作目录，不是沙箱，删除 worktree 由人来做。</li>
+					</ul>
+				</section>
+
+				<section id="verdict">
+					<h2><span class="step-no">05</span>结论</h2>
+					<div class="verdict">
+						<span class="chip">ONE-LINER</span>
+						<p>learn-claude-code 把 Claude Code 这类 Agent 拆成「一个不变的循环 + 十几个挂在循环上的机制」，每章只加一个机制、代码都能单独跑，第 15 章再全部接回去。想搞懂一个编程 Agent 的骨架，这是目前最顺的一条路。</p>
+					</div>
+					<div class="two-col">
+						<div>
+							<h4>适合谁</h4>
+							<ul>
+								<li>想自己写一个 Agent、不知道从哪开始的人</li>
+								<li>用过 Claude Code，想知道权限、压缩、子 agent 背后大概怎么实现的人</li>
+								<li>已经有 Agent，想对照查漏补缺（错误恢复、压缩边界、注入防护）的人</li>
+							</ul>
+						</div>
+						<div>
+							<h4>需要注意</h4>
+							<ul>
+								<li>这是教学代码，不是 Claude Code 源码；拒绝名单是简单的子串匹配，挡不住真正的恶意命令</li>
+								<li>第 13、16 章在文件开头直接 <code>import fcntl</code>，这个模块 Windows 没有，在 Windows 上大概率跑不起来（第 15 章做了兼容）</li>
+								<li>换用其他兼容接口的模型时，仓库自己也说行为可能和 Anthropic 不完全一致</li>
+							</ul>
+						</div>
+					</div>
+					<h3>猪猪的三条收获</h3>
+					<ol>
+						<li><strong>循环不变，机制外挂。</strong>权限、日志、提醒都做成钩子，主循环就不用每加一个功能改一次。</li>
+						<li><strong>压缩先做免费的。</strong>存盘、剪中间、换成路径都不用调模型，真不够了才花钱写摘要。</li>
+						<li><strong>摘要和记忆都是「数据」，不是「指令」。</strong>压缩后只有用户原话算数，这一条在任何会自动总结的系统里都值得照搬。</li>
+					</ol>
+					<h3>参考资料</h3>
+					<ul class="refs">
+						<li><a href="https://github.com/shareAI-lab/learn-claude-code" target="_blank" rel="noopener">shareAI-lab/learn-claude-code</a>：README-zh.md、s01_agent_loop/code.py、s15_integrated_harness/code.py，以及 s13、s16、s17 的文档串</li>
+						<li>研究所系列：<a href="claude-code.html">Claude Code 解析</a>、<a href="mcp.html">MCP 解析</a>、<a href="harness2.html">Harness² 解析</a></li>
+					</ul>
+				</section>
+			</article>
+		</div>
+	</main>
+
+	<footer class="footer">
+		<div class="wrap footer-in">
+			<div class="footer-brand">
+				<img src="../assets/logo.webp" alt="" width="28" height="28">
+				<span>© 2026 czspig · 猪猪 Repo 研究所</span>
+			</div>
+			<nav class="footer-links" aria-label="页脚链接">
+				<a href="https://czspig.github.io/" target="_blank" rel="noopener">czspig 的博客</a>
+				<a href="https://github.com/czspig/czspig-repo-lab" target="_blank" rel="noopener">GitHub</a>
+			</nav>
+		</div>
+	</footer>
+
+	<script src="../assets/report.js"></script>
+</body>
+</html>
